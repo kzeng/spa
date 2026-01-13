@@ -22,6 +22,14 @@
    - SIP2检查接口返回信息，如果成功，需要开门，则需要调用门禁开门接口（如: gate_open）
    - 所有接口反馈后都需要处理后显示在页面底部，并语音提示。
    
+
+工作流
+
+CameraX 提供帧 → ML Kit 检测到人脸并输出框/trackId
+连续稳定 N 帧 → 抓取最佳帧 → 调用 face_auth（你的库/服务）
+认证成功 → sip2_check → gate_open
+底部 25% 状态区 + TTS 播报
+
 4. 整体感觉： - 简洁 / 工业风 / 偏工具
 
 为我生成应用程序的UI原型图。
@@ -30,11 +38,38 @@
 
 ## TARGET
 
+- Android Studio 2025.2
+- JDK 17 (required by AGP 8.2)
+- Kotlin 1.9.22
+- Material 3 (Jetpack Compose)
+- Minimum SDK 23; Target SDK 33 (Android 13)
 
 
+## ISSUES
 
-##
+
+现在项目里的“人脸识别”是模拟的：CameraX 仅做前置预览，定时触发 onFaceDetected()。
+要做真实识别，建议用内置库或接入第三方。最稳的是：ML Kit 做“人脸检测（框/关键点）”，然后把最佳帧送到你的 face_auth 做“人脸认证（比对身份）”。检测≠认证。
 
 
+CameraX 获取帧
+ML Kit Face Detection 判断是否有人脸、输出框/关键点
+稳定 N 帧后抓取最佳帧 → 调用 face_auth（本地模型或服务端）
+成功 → sip2_check → 需要开门 → gate_open
+底部 25% 状态区+TTS 播报
+最小接入示例（检测用 ML Kit，认证仍走你的 face_auth）
+
+// ...existing code...
+dependencies {
+    // CameraX (已集成则保留)
+    implementation("androidx.camera:camera-core:1.3.3")
+    implementation("androidx.camera:camera-camera2:1.3.3")
+    implementation("androidx.camera:camera-lifecycle:1.3.3")
+    implementation("androidx.camera:camera-view:1.3.3")
+
+    // ML Kit 人脸检测（仅检测，不做身份比对）
+    implementation("com.google.mlkit:face-detection:16.1.5")
+}
+// ...existing code...
 
 
