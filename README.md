@@ -9,6 +9,7 @@ Android single-screen app using Material 3 + Jetpack Compose.
 - UI state machine: Idle / FaceDetected / AuthSuccess / Denied / Error
 - TTS voice prompts
 - Mocked services: `face_auth`, `sip2_check`, `gate_open`
+ - Hidden admin exit: bottom-left long-press 6s → password dialog
 
 ## Requirements
 - Android Studio 2025.2 (Otter 2)
@@ -25,6 +26,7 @@ Android single-screen app using Material 3 + Jetpack Compose.
 ## Run
 - Grant camera + microphone permissions.
 - The app mocks detection and will automatically transition through states.
+ - Admin exit: press and hold bottom-left transparent area for 6 seconds, enter password `123321`, app exits.
 
 ## Notes
 - CameraX is integrated for front preview. Real face detection can be wired via ML Kit or internal libs in `onFaceDetected()` trigger.

@@ -30,7 +30,10 @@ import com.seamlesspassage.spa.speech.AudioPromptManager
 import com.seamlesspassage.spa.ui.AppViewModel
 import com.seamlesspassage.spa.ui.components.BottomStatusPanel
 import com.seamlesspassage.spa.ui.components.StatusType
+import com.seamlesspassage.spa.ui.components.AdminExitDialog
+import com.seamlesspassage.spa.ui.components.LongHoldHotspot
 import com.seamlesspassage.spa.ui.state.UiState
+import android.app.Activity
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
@@ -70,6 +73,8 @@ class MainActivity : ComponentActivity() {
 fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     val ctx = LocalContext.current
+    val activity = ctx as? Activity
+    var showAdminDialog by remember { mutableStateOf(false) }
 
     // trigger mocked detection periodically when idle
     LaunchedEffect(uiState) {
@@ -134,6 +139,25 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
             statusSubtitle = status.sub,
             statusType = status.type
         )
+
+        // Hidden admin long-press hotspot (bottom-left transparent area)
+        LongHoldHotspot(
+            modifier = Modifier.align(Alignment.BottomStart),
+            holdMillis = 6000,
+            onTriggered = { showAdminDialog = true }
+        )
+
+        if (showAdminDialog) {
+            AdminExitDialog(
+                onDismiss = { showAdminDialog = false },
+                onConfirm = { pwd ->
+                    if (pwd == "123321") {
+                        showAdminDialog = false
+                        activity?.finishAffinity()
+                    }
+                }
+            )
+        }
     }
 }
 
