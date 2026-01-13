@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Seamless Passage</string>
+    <string name="status_identity_ok">身份验证成功</string>
+    <string name="status_permission_ok">权限检査通过</string>
+    <string name="status_gate_open">门已开启</string>
+    <string name="status_waiting">请正对摄像头以完成识别</string>
+    <string name="status_denied">认证失败或权限不足</string>
+    <string name="status_error">系统错误，请稍后重试</string>
+</resources>
