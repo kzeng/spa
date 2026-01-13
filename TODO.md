@@ -73,3 +73,17 @@ dependencies {
 // ...existing code...
 
 
+Build:
+--------------
+ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
+
+
+ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon --refresh-dependencies assembleDebug
+
+
+
+APK Install:
+---------------
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+

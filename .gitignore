@@ -1,0 +1,43 @@
+# Gradle
+.gradle/
+.gradle-bin/
+/build/
+/local.properties
+**/build/
+**/.gradle/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+/.settings/
+.cxx/
+.externalNativeBuild/
+
+# Log files
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Keystores (do NOT commit real keys)
+*.jks
+*.keystore
+
+# Generated files
+captures/
+outputs/
+app/release/
+
+# Kotlin/Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Misc
+*.swp
+*.swo
+*.tmp

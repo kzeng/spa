@@ -1,0 +1,7 @@
+// Temporary build script to generate Gradle Wrapper without evaluating the project
+// Uses Groovy DSL; run with an external Gradle distribution.
+
+tasks.register('generateWrapper', Wrapper) {
+    gradleVersion = '8.2.2'
+    distributionType = Wrapper.DistributionType.BIN
+}

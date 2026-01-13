@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -64,11 +65,16 @@ fun BottomStatusPanel(
                     StatusType.Error -> Icons.Default.Close
                     StatusType.Info -> Icons.Default.Info
                 }
-                Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier)
-                Text(text = statusTitle, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(48.dp)
+                )
+                Text(text = statusTitle, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
             if (!statusSubtitle.isNullOrBlank()) {
-                Text(text = statusSubtitle!!, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = statusSubtitle!!, fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

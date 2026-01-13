@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Seamless Passage</string>
+    <string name="app_name">无感通道应用</string>
     <string name="status_identity_ok">身份验证成功</string>
     <string name="status_permission_ok">权限检査通过</string>
     <string name="status_gate_open">门已开启</string>
