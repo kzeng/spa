@@ -1,4 +1,4 @@
-# Seamless Passage Application (SPA)
+# Seamless Passage Application (SPA) 无感通道应用
 
 Android single-screen app using Material 3 + Jetpack Compose.
 
