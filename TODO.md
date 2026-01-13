@@ -1,4 +1,4 @@
-# Seamless Passage Application (SPA) 无感通行应用
+# Seamless Passage Application (SPA) 无感通道应用
 
 ## 
 
