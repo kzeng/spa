@@ -84,6 +84,10 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
     var showAdminDialog by remember { mutableStateOf(false) }
     var faceOverlayData by remember { mutableStateOf<FaceOverlayData?>(null) }
 
+    // 避免同一提示语被重复播放过多次
+    var hasSpokenIdle by remember { mutableStateOf(false) }
+    var hasSpokenFaceDetected by remember { mutableStateOf(false) }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         // 1) Full-screen front camera preview
         FrontCameraPreview(
@@ -104,8 +108,8 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
         // 3) Bottom 25% status area (贴底，不留空)
         val status = when (uiState) {
             is UiState.Idle -> StatusUi(
-                title = "请正对摄像头以完成识别",
-                sub = "无须操作，识别完成后自动检査权限并开门",
+                title = "请正对摄像头",
+                sub = "您无须操作，等待完成识别",
                 type = StatusType.Info
             )
             is UiState.FaceDetected -> StatusUi(
@@ -114,12 +118,12 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
                 type = StatusType.Info
             )
             is UiState.AuthSuccess -> StatusUi(
-                title = "身份验证成功 · 权限检査通过 · 门已开启",
-                sub = "欢迎进入",
+                title = "认证成功",
+                sub = "请通过",
                 type = StatusType.Success
             )
             is UiState.Denied -> StatusUi(
-                title = "认证失败或权限不足",
+                title = "认证失败",
                 sub = "请联系管理员",
                 type = StatusType.Error
             )
@@ -131,12 +135,23 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
         }
 
         // Speak key messages
-        LaunchedEffect(status.title) {
+        LaunchedEffect(uiState) {
             when (uiState) {
-                is UiState.AuthSuccess -> speak("身份验证成功，权限通过，门已开启")
-                is UiState.Denied -> speak("认证失败或权限不足")
+                is UiState.Idle -> {
+                    if (!hasSpokenIdle) {
+                        speak("请正对摄像头，您无须操作，等待完成识别")
+                        hasSpokenIdle = true
+                    }
+                }
+                is UiState.FaceDetected -> {
+                    if (!hasSpokenFaceDetected) {
+                        speak("正在认证身份，请保持正对镜头")
+                        hasSpokenFaceDetected = true
+                    }
+                }
+                is UiState.AuthSuccess -> speak("认证成功，请通过")
+                is UiState.Denied -> speak("认证失败")
                 is UiState.Error -> speak("系统错误，请稍后重试")
-                else -> {}
             }
         }
 

@@ -2,25 +2,60 @@ package com.seamlesspassage.spa.speech
 
 import android.content.Context
 import android.speech.tts.TextToSpeech
+import android.util.Log
 import java.util.Locale
 
+/**
+ * 语音提示管理：仅使用本地 Android TextToSpeech。
+ */
 class AudioPromptManager(context: Context) {
     private var tts: TextToSpeech? = null
 
     init {
         tts = TextToSpeech(context) { status ->
+            Log.d(TAG, "TTS onInit status=$status")
+            Log.d(TAG, "TTS defaultEngine=${tts?.defaultEngine}")
+            val engines = tts?.engines
+            Log.d(TAG, "TTS available engines=${engines?.joinToString { it.name }}")
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.CHINA
+                // 优先尝试设备上的粤语（香港）语音，如果没有再回退到普通话
+                val cantonese = Locale("yue", "HK")
+                val result = tts?.setLanguage(cantonese)
+                Log.d(TAG, "Set Cantonese result=$result")
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    // 回退到简体中文
+                    val r2 = tts?.setLanguage(Locale.SIMPLIFIED_CHINESE)
+                    Log.d(TAG, "Fallback Simplified Chinese result=$r2")
+                }
+            } else {
+                Log.e(TAG, "TTS init failed: status=$status")
             }
         }
     }
 
     fun speak(text: String) {
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, System.currentTimeMillis().toString())
+        val engine = tts
+        if (engine == null) {
+            Log.e(TAG, "Local TTS engine is null, cannot speak")
+            return
+        }
+        Log.d(TAG, "Local TTS speak: $text")
+        engine.speak(
+            text,
+            TextToSpeech.QUEUE_FLUSH,
+            null,
+            System.currentTimeMillis().toString()
+        )
     }
 
     fun shutdown() {
+        Log.d(TAG, "shutdown TTS")
         tts?.stop()
         tts?.shutdown()
+        tts = null
+    }
+
+    companion object {
+        private const val TAG = "AudioPromptManager"
     }
 }
