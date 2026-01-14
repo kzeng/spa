@@ -22,18 +22,25 @@
    - SIP2检查接口返回信息，如果成功，需要开门，则需要调用门禁开门接口（如: gate_open）
    - 所有接口反馈后都需要处理后显示在页面底部，并语音提示。
    
+4. 整体感觉： - 简洁 / 工业风 / 偏工具
 
-工作流
+
+## 工作流
 
 CameraX 提供帧 → ML Kit 检测到人脸并输出框/trackId
 连续稳定 N 帧 → 抓取最佳帧 → 调用 face_auth（你的库/服务）
 认证成功 → sip2_check → gate_open
 底部 25% 状态区 + TTS 播报
 
-4. 整体感觉： - 简洁 / 工业风 / 偏工具
+检测到人脸后会进入“人脸认证→权限检査→开门(报警)”的工作流。
 
-为我生成应用程序的UI原型图。
-
+入口与位置：
+MainActivity.kt 的 FrontCameraPreview 回调 onFaceDetected 调用 viewModel.onFaceDetected(faceId)。
+工作流实现：app/src/main/java/com/seamlesspassage/spa/ui/AppViewModel.kt 的 onFaceDetected() 方法，依次调用：
+app/src/main/java/com/seamlesspassage/spa/services/FaceAuthService.kt：authenticate(faceId) 获取用户身份/ID
+app/src/main/java/com/seamlesspassage/spa/services/Sip2Service.kt：check(userId) 做权限/借阅/门禁校验
+app/src/main/java/com/seamlesspassage/spa/services/GateService.kt：open() 执行开门
+状态更新：AppViewModel 根据结果切换 UiState 到 AuthSuccess / Denied / Error，并由 BottomStatusPanel 与 TTS 播报。
 
 
 ## TARGET
@@ -73,6 +80,7 @@ dependencies {
 // ...existing code...
 
 
+## BUILD & INSTALL
 Build:
 --------------
 ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
