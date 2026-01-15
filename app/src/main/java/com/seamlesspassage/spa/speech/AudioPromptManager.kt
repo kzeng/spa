@@ -18,15 +18,9 @@ class AudioPromptManager(context: Context) {
             val engines = tts?.engines
             Log.d(TAG, "TTS available engines=${engines?.joinToString { it.name }}")
             if (status == TextToSpeech.SUCCESS) {
-                // 优先尝试设备上的粤语（香港）语音，如果没有再回退到普通话
-                val cantonese = Locale("yue", "HK")
-                val result = tts?.setLanguage(cantonese)
-                Log.d(TAG, "Set Cantonese result=$result")
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    // 回退到简体中文
-                    val r2 = tts?.setLanguage(Locale.SIMPLIFIED_CHINESE)
-                    Log.d(TAG, "Fallback Simplified Chinese result=$r2")
-                }
+                // 直接设置为简体中文（普通话）
+                val result = tts?.setLanguage(Locale.SIMPLIFIED_CHINESE)
+                Log.d(TAG, "Set Simplified Chinese result=$result")
             } else {
                 Log.e(TAG, "TTS init failed: status=$status")
             }
