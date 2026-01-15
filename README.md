@@ -12,6 +12,24 @@
 - 模拟服务：人脸认证（`FaceAuthService`）、权限检査（`Sip2Service`）、门禁开门（`GateService`）
 - 隐藏管理员退出：左下角透明区域长按 6 秒 → 密码框 → 默认口令 `123321`
 
+## 运行流程（工作流）
+1) `MainActivity` 全屏展示前置相机预览（CameraX）。
+2) `CameraPreview` 使用 ML Kit 检测人脸：
+	 - 一旦检测到人脸，触发 `AppViewModel.onFaceDetected()`。
+	 - 同时输出用于 UI 叠加的归一化边界框与关键点/衍生点，`FaceOverlay` 进行绘制。
+3) `AppViewModel` 串联业务模拟：
+	 - `FaceAuthService.authenticate()` → 成功则继续
+	 - `Sip2Service.check()` → 允许则继续
+	 - `GateService.open()` → 成功则进入 `AuthSuccess`
+	 - 任一失败进入 `Denied` 或 `Error`
+4) `BottomStatusPanel` 在屏幕底部 25% 区域展示当前状态文字与图标；成功/失败/错误会通过 TTS 播报。
+5) 若无操作，状态将在数秒后自动回到 `Idle`。
+
+
+## UI原型
+
+![UI原型](./spa_proto.jpeg)
+
 ## 开发环境与依赖
 - JDK：17（项目使用 Java 17 兼容）
 - Android Gradle Plugin（AGP）：8.2.2（见根级 `build.gradle.kts`）
@@ -58,18 +76,7 @@ gradlew.bat installDebug
 - 运行时会请求相机权限（`CAMERA`）。清单已声明 `RECORD_AUDIO` 以支持 TTS；如需 TTS 引擎语音输出，请确保设备安装并启用对应语音包。
 - 清单已设置 `keepScreenOn`、竖屏固定、前置相机能力标记。
 
-## 运行流程（工作流）
-1) `MainActivity` 全屏展示前置相机预览（CameraX）。
-2) `CameraPreview` 使用 ML Kit 检测人脸：
-	 - 一旦检测到人脸，触发 `AppViewModel.onFaceDetected()`。
-	 - 同时输出用于 UI 叠加的归一化边界框与关键点/衍生点，`FaceOverlay` 进行绘制。
-3) `AppViewModel` 串联业务模拟：
-	 - `FaceAuthService.authenticate()` → 成功则继续
-	 - `Sip2Service.check()` → 允许则继续
-	 - `GateService.open()` → 成功则进入 `AuthSuccess`
-	 - 任一失败进入 `Denied` 或 `Error`
-4) `BottomStatusPanel` 在屏幕底部 25% 区域展示当前状态文字与图标；成功/失败/错误会通过 TTS 播报。
-5) 若无操作，状态将在数秒后自动回到 `Idle`。
+
 
 ## 使用说明
 - 首次运行请允许相机与麦克风权限。
