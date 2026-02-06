@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import java.util.concurrent.Executors
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
@@ -26,6 +27,7 @@ import com.google.mlkit.vision.face.FaceLandmark
 @Composable
 fun FrontCameraPreview(
     modifier: Modifier = Modifier,
+    isCameraPermissionGranted: Boolean,
     onFaceDetected: (String) -> Unit = {},
     onFaceOverlay: (FaceOverlayData?) -> Unit = {},
 ) {
@@ -41,8 +43,12 @@ fun FrontCameraPreview(
 
     AndroidView(factory = { previewView }, modifier = modifier)
 
-    LaunchedEffect(Unit) {
-        startCamera(context, lifecycleOwner, previewView, onFaceDetected, onFaceOverlay)
+    LaunchedEffect(isCameraPermissionGranted) {
+        if (isCameraPermissionGranted) {
+            startCamera(context, lifecycleOwner, previewView, onFaceDetected, onFaceOverlay)
+        } else {
+            onFaceOverlay(null)
+        }
     }
 }
 
@@ -59,7 +65,8 @@ private fun startCamera(
         val preview = Preview.Builder().build().also {
             it.setSurfaceProvider(previewView.surfaceProvider)
         }
-        val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+        val frontCameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+        val backCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
         // ML Kit face detector (fast mode, with landmarks)
         val options = FaceDetectorOptions.Builder()
@@ -73,15 +80,23 @@ private fun startCamera(
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
 
-        analysisUseCase.setAnalyzer(ContextCompat.getMainExecutor(context)) { imageProxy: ImageProxy ->
+        val analysisExecutor = Executors.newSingleThreadExecutor()
+
+        analysisUseCase.setAnalyzer(analysisExecutor) { imageProxy: ImageProxy ->
             processImageProxy(detector, imageProxy, onFaceDetected, onFaceOverlay)
         }
 
         try {
             cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview, analysisUseCase)
-        } catch (exc: Exception) {
-            Log.e("CameraPreview", "Camera start failed", exc)
+            cameraProvider.bindToLifecycle(lifecycleOwner, frontCameraSelector, preview, analysisUseCase)
+        } catch (frontExc: Exception) {
+            Log.e("CameraPreview", "Front camera start failed, trying back camera", frontExc)
+            try {
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(lifecycleOwner, backCameraSelector, preview, analysisUseCase)
+            } catch (backExc: Exception) {
+                Log.e("CameraPreview", "Back camera start also failed", backExc)
+            }
         }
     }, ContextCompat.getMainExecutor(context))
 }

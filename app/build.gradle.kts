@@ -61,10 +61,11 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
 
     // CameraX (preview view; front camera)
-    implementation("androidx.camera:camera-core:1.3.3")
-    implementation("androidx.camera:camera-camera2:1.3.3")
-    implementation("androidx.camera:camera-lifecycle:1.3.3")
-    implementation("androidx.camera:camera-view:1.3.3")
+    // Use 1.2.3 for better compatibility with some Android 13 vendor ROMs
+    implementation("androidx.camera:camera-core:1.2.3")
+    implementation("androidx.camera:camera-camera2:1.2.3")
+    implementation("androidx.camera:camera-lifecycle:1.2.3")
+    implementation("androidx.camera:camera-view:1.2.3")
 
     // ML Kit 人脸检测
     implementation("com.google.mlkit:face-detection:16.1.5")

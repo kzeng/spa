@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private val cameraPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
+        viewModel.setCameraPermissionGranted(granted)
         if (!granted) {
             viewModel.setError("缺少摄像头权限")
         }
@@ -79,6 +80,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
+    val hasCameraPermission by viewModel.hasCameraPermission.collectAsState()
     val ctx = LocalContext.current
     val activity = ctx as? Activity
     var showAdminDialog by remember { mutableStateOf(false) }
@@ -89,16 +91,19 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
     var hasSpokenFaceDetected by remember { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        // 1) Full-screen front camera preview
-        FrontCameraPreview(
-            modifier = Modifier.fillMaxSize(),
-            onFaceDetected = { faceId ->
-                viewModel.onFaceDetected(faceId)
-            },
-            onFaceOverlay = { data ->
-                faceOverlayData = data
-            }
-        )
+        // 1) Full-screen front camera preview (only when camera permission is granted)
+        if (hasCameraPermission) {
+            FrontCameraPreview(
+                modifier = Modifier.fillMaxSize(),
+                isCameraPermissionGranted = true,
+                onFaceDetected = { faceId ->
+                    viewModel.onFaceDetected(faceId)
+                },
+                onFaceOverlay = { data ->
+                    faceOverlayData = data
+                }
+            )
+        }
 
         // 2) Face overlay (only when FaceDetected)
         if (uiState is UiState.FaceDetected && faceOverlayData != null) {

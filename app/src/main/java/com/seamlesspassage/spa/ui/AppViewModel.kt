@@ -22,6 +22,9 @@ class AppViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
     val uiState: StateFlow<UiState> = _uiState
 
+    private val _hasCameraPermission = MutableStateFlow(false)
+    val hasCameraPermission: StateFlow<Boolean> = _hasCameraPermission
+
     fun onFaceDetected(faceId: String) {
         if (_uiState.value is UiState.Idle || _uiState.value is UiState.Error) {
             _uiState.value = UiState.FaceDetected(faceId)
@@ -52,5 +55,9 @@ class AppViewModel : ViewModel() {
 
     fun setError(message: String) {
         _uiState.value = UiState.Error(message)
+    }
+
+    fun setCameraPermissionGranted(granted: Boolean) {
+        _hasCameraPermission.value = granted
     }
 }

@@ -95,3 +95,23 @@ APK Install:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 
+WiFi debug
+-----------------
+
+adb kill-server
+adb start-server
+adb devices
+
+
+adb connect 192.168.0.101:5555
+adb devices       # 确认有 192.168.0.101:5555 device
+
+
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+already connected to 192.168.0.101:5555
+List of devices attached
+192.168.0.101:5555      device
+
+Performing Streamed Install
+
+
