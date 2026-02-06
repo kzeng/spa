@@ -83,12 +83,10 @@ dependencies {
 ## BUILD & INSTALL
 Build:
 --------------
-ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
-
 
 ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon --refresh-dependencies assembleDebug
 
-
+ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
 
 APK Install:
 ---------------
@@ -114,4 +112,18 @@ List of devices attached
 
 Performing Streamed Install
 
+
+TTS
+----------
+
+
+https://ttsfree.com/#try-now  USE IT!!! DONNOT USE WAV FILES!!!!!
+
+
+cd /home/zengkai/Codes/spa/app/src/main/res/raw && 
+espeak-ng -v zh -s 140 -w prompt_idle.wav "请正对摄像头，您无须操作，等待完成识别" && 
+espeak-ng -v zh -s 140 -w prompt_verifying.wav "正在认证身份，请保持正对镜头" && 
+espeak-ng -v zh -s 140 -w prompt_success.wav "认证成功，请通过" && 
+espeak-ng -v zh -s 140 -w prompt_failed.wav "认证失败" && 
+espeak-ng -v zh -s 140 -w prompt_error.wav "系统错误，请稍后重试"
 
