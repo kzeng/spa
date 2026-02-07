@@ -12,7 +12,10 @@ android {
         minSdk = 23
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0"
+        // versionName = "1.0"
+
+        //kzeng changed to 1.0.6
+        versionName = "1.0.6"
     }
 
     buildTypes {
@@ -22,6 +25,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    // 使用本模块下的 libs 目录加载厂家 so 库（armeabi-v7a 等）
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDir("libs")
         }
     }
 
@@ -69,5 +79,12 @@ dependencies {
 
     // ML Kit 人脸检测
     implementation("com.google.mlkit:face-detection:16.1.5")
+
+    // HTTP client for face_auth
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // 厂家 RFID 无感借书通道库（拷贝到本模块 app/libs 下）
+    implementation(files("libs/anreaderlib.jar"))
+    implementation(files("libs/d2xx.jar"))
 
 }

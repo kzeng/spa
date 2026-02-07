@@ -6,6 +6,7 @@ import com.seamlesspassage.spa.services.FaceAuthService
 import com.seamlesspassage.spa.services.FaceAuthResult
 import com.seamlesspassage.spa.services.GateService
 import com.seamlesspassage.spa.services.GateResult
+import com.seamlesspassage.spa.services.InventoryResult
 import com.seamlesspassage.spa.services.Sip2Service
 import com.seamlesspassage.spa.services.Sip2Result
 import com.seamlesspassage.spa.ui.state.UiState
@@ -25,23 +26,67 @@ class AppViewModel : ViewModel() {
     private val _hasCameraPermission = MutableStateFlow(false)
     val hasCameraPermission: StateFlow<Boolean> = _hasCameraPermission
 
-    fun onFaceDetected(faceId: String) {
+    /**
+     * APP 启动时调用：预先连接并初始化通道设备。
+     */
+    fun initChannelOnStart() {
+        viewModelScope.launch {
+            when (val r = gate.initChannel()) {
+                is GateResult.Opened -> {
+                    // 通道就绪，不改变当前 UI 状态
+                }
+                is GateResult.Failed -> {
+                    // 记录错误，让底部状态区和 TTS 能提示“系统错误/通道异常”
+                    _uiState.value = UiState.Error(r.message)
+                    // 稍后仍可自动回到 Idle，避免卡死在错误界面
+                    delay(3000)
+                    _uiState.value = UiState.Idle
+                }
+            }
+        }
+    }
+
+    fun onFaceDetected(faceImageBase64: String) {
         if (_uiState.value is UiState.Idle || _uiState.value is UiState.Error) {
-            _uiState.value = UiState.FaceDetected(faceId)
+            _uiState.value = UiState.FaceDetected
             viewModelScope.launch {
-                // Simulate debounce to ensure stable face
-                delay(300)
-                when (val auth = faceAuth.authenticate(faceId)) {
+                when (val auth = faceAuth.authenticate(faceImageBase64)) {
                     is FaceAuthResult.Success -> {
-                        val check = sip2.check(auth.userId)
-                        when (check) {
-                            is Sip2Result.Allowed -> {
-                                when (val g = gate.open()) {
-                                    is GateResult.Opened -> _uiState.value = UiState.AuthSuccess(auth.userId)
-                                    is GateResult.Failed -> _uiState.value = UiState.Error(g.message)
+                        // 1. 一号门开门 + 盘点标签
+                        when (val inv = gate.inventoryAfterEntry()) {
+                            is InventoryResult.Success -> {
+                                val tags = inv.tags
+                                // tags 不为空才发起 sip2_check
+                                if (tags.isEmpty()) {
+                                    gate.openEntryDoor()
+                                    _uiState.value = UiState.Denied
+                                } else {
+                                    val check = sip2.check(auth.userId, tags)
+                                    when (check) {
+                                        is Sip2Result.Allowed -> {
+                                            when (val g = gate.openExitDoor()) {
+                                                is GateResult.Opened -> _uiState.value = UiState.AuthSuccess(auth.userId)
+                                                is GateResult.Failed -> _uiState.value = UiState.Error(g.message)
+                                            }
+                                        }
+                                        is Sip2Result.Denied -> {
+                                            // 借书失败：开一号门退回
+                                            gate.openEntryDoor()
+                                            _uiState.value = UiState.Denied
+                                        }
+                                    }
                                 }
                             }
-                            is Sip2Result.Denied -> _uiState.value = UiState.Denied
+                            InventoryResult.NoTags -> {
+                                // 未读到任何标签，视为失败：开一号门退回
+                                gate.openEntryDoor()
+                                _uiState.value = UiState.Denied
+                            }
+                            is InventoryResult.Error -> {
+                                // 盘点错误，同样开一号门退回，前端显示错误信息
+                                gate.openEntryDoor()
+                                _uiState.value = UiState.Error(inv.message)
+                            }
                         }
                     }
                     is FaceAuthResult.Failure -> _uiState.value = UiState.Denied

@@ -1,6 +1,10 @@
 package com.seamlesspassage.spa.camera
 
 import android.content.Context
+import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
+import android.util.Base64
 import android.util.Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.camera.core.CameraSelector
@@ -17,12 +21,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import java.util.concurrent.Executors
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.google.mlkit.vision.face.FaceLandmark
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.util.concurrent.Executors
 
 @Composable
 fun FrontCameraPreview(
@@ -57,7 +63,7 @@ private fun startCamera(
     lifecycleOwner: androidx.lifecycle.LifecycleOwner,
     previewView: PreviewView,
     onFaceDetected: (String) -> Unit,
-     onFaceOverlay: (FaceOverlayData?) -> Unit,
+    onFaceOverlay: (FaceOverlayData?) -> Unit,
 ) {
     val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
     cameraProviderFuture.addListener({
@@ -101,6 +107,18 @@ private fun startCamera(
     }, ContextCompat.getMainExecutor(context))
 }
 
+private const val STABLE_FRAMES_REQUIRED = 3
+private const val IOU_THRESHOLD = 0.9f
+
+@Volatile
+private var lastFaceBounds: NormalizedRect? = null
+
+@Volatile
+private var stableFrameCount: Int = 0
+
+@Volatile
+private var hasTriggeredForCurrentFace: Boolean = false
+
 private fun processImageProxy(
     detector: FaceDetector,
     imageProxy: ImageProxy,
@@ -131,9 +149,6 @@ private fun processImageProxy(
     detector.process(image)
         .addOnSuccessListener { faces ->
             if (faces.isNotEmpty()) {
-                // Trigger higher-level pipeline once a face is present
-                onFaceDetected("mlkit-face")
-
                 val primary = faces.first()
 
                 val box = primary.boundingBox
@@ -245,8 +260,36 @@ private fun processImageProxy(
                         imageAspect = if (imageHeight != 0f) imageWidth / imageHeight else 1f,
                     )
                 )
+
+                val previousBounds = lastFaceBounds
+                if (previousBounds == null) {
+                    lastFaceBounds = bounds
+                    stableFrameCount = 1
+                } else {
+                    val iou = intersectionOverUnion(previousBounds, bounds)
+                    if (iou >= IOU_THRESHOLD) {
+                        stableFrameCount += 1
+                    } else {
+                        lastFaceBounds = bounds
+                        stableFrameCount = 1
+                        hasTriggeredForCurrentFace = false
+                    }
+                }
+
+                if (!hasTriggeredForCurrentFace && stableFrameCount >= STABLE_FRAMES_REQUIRED) {
+                    try {
+                        val base64 = imageProxyToBase64(imageProxy)
+                        onFaceDetected(base64)
+                        hasTriggeredForCurrentFace = true
+                    } catch (e: Exception) {
+                        Log.e("CameraPreview", "Failed to encode face frame", e)
+                    }
+                }
             } else {
                 onFaceOverlay(null)
+                lastFaceBounds = null
+                stableFrameCount = 0
+                hasTriggeredForCurrentFace = false
             }
         }
         .addOnFailureListener { e ->
@@ -255,6 +298,79 @@ private fun processImageProxy(
         .addOnCompleteListener {
             imageProxy.close()
         }
+}
+
+private fun intersectionOverUnion(a: NormalizedRect, b: NormalizedRect): Float {
+    val interLeft = maxOf(a.left, b.left)
+    val interTop = maxOf(a.top, b.top)
+    val interRight = minOf(a.right, b.right)
+    val interBottom = minOf(a.bottom, b.bottom)
+
+    val interWidth = (interRight - interLeft).coerceAtLeast(0f)
+    val interHeight = (interBottom - interTop).coerceAtLeast(0f)
+    val interArea = interWidth * interHeight
+
+    if (interArea <= 0f) return 0f
+
+    val areaA = (a.right - a.left).coerceAtLeast(0f) * (a.bottom - a.top).coerceAtLeast(0f)
+    val areaB = (b.right - b.left).coerceAtLeast(0f) * (b.bottom - b.top).coerceAtLeast(0f)
+    if (areaA <= 0f || areaB <= 0f) return 0f
+
+    val unionArea = areaA + areaB - interArea
+    return if (unionArea > 0f) interArea / unionArea else 0f
+}
+
+private fun imageProxyToBase64(imageProxy: ImageProxy): String {
+    val nv21 = yuv420ToNv21(imageProxy)
+    val yuvImage = YuvImage(nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
+    val stream = ByteArrayOutputStream()
+    yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 85, stream)
+    val jpegBytes = stream.toByteArray()
+    return Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
+}
+
+private fun yuv420ToNv21(image: ImageProxy): ByteArray {
+    val width = image.width
+    val height = image.height
+
+    val yPlane = image.planes[0]
+    val uPlane = image.planes[1]
+    val vPlane = image.planes[2]
+
+    val yBuffer: ByteBuffer = yPlane.buffer
+    val uBuffer: ByteBuffer = uPlane.buffer
+    val vBuffer: ByteBuffer = vPlane.buffer
+
+    val nv21 = ByteArray(width * height * 3 / 2)
+
+    var outputIndex = 0
+    val yRowStride = yPlane.rowStride
+    val yPixelStride = yPlane.pixelStride
+    for (row in 0 until height) {
+        val rowStart = row * yRowStride
+        for (col in 0 until width) {
+            val index = rowStart + col * yPixelStride
+            nv21[outputIndex++] = yBuffer.get(index)
+        }
+    }
+
+    val uvRowStride = uPlane.rowStride
+    val uvPixelStride = uPlane.pixelStride
+    val halfHeight = height / 2
+    val halfWidth = width / 2
+
+    for (row in 0 until halfHeight) {
+        val rowStart = row * uvRowStride
+        for (col in 0 until halfWidth) {
+            val colOffset = col * uvPixelStride
+            val uIndex = rowStart + colOffset
+            val vIndex = rowStart + colOffset
+            nv21[outputIndex++] = vBuffer.get(vIndex)
+            nv21[outputIndex++] = uBuffer.get(uIndex)
+        }
+    }
+
+    return nv21
 }
 
 data class NormalizedPoint(val x: Float, val y: Float)

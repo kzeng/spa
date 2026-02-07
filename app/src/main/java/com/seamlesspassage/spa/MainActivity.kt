@@ -90,14 +90,19 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
     var hasSpokenIdle by remember { mutableStateOf(false) }
     var hasSpokenFaceDetected by remember { mutableStateOf(false) }
 
+    // APP 首次进入组合时，预先初始化通道设备
+    LaunchedEffect(Unit) {
+        viewModel.initChannelOnStart()
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         // 1) Full-screen front camera preview (only when camera permission is granted)
         if (hasCameraPermission) {
             FrontCameraPreview(
                 modifier = Modifier.fillMaxSize(),
                 isCameraPermissionGranted = true,
-                onFaceDetected = { faceId ->
-                    viewModel.onFaceDetected(faceId)
+                onFaceDetected = { faceImageBase64 ->
+                    viewModel.onFaceDetected(faceImageBase64)
                 },
                 onFaceOverlay = { data ->
                     faceOverlayData = data
