@@ -15,7 +15,7 @@ android {
         // versionName = "1.0"
 
         //kzeng changed to 1.0.6
-        versionName = "1.0.6"
+        versionName = "1.0.7"
     }
 
     buildTypes {
