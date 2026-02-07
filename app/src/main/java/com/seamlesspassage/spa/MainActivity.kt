@@ -28,7 +28,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.seamlesspassage.spa.camera.FaceOverlayData
@@ -37,10 +36,7 @@ import com.seamlesspassage.spa.speech.AudioPromptManager
 import com.seamlesspassage.spa.ui.AppViewModel
 import com.seamlesspassage.spa.ui.components.BottomStatusPanel
 import com.seamlesspassage.spa.ui.components.StatusType
-import com.seamlesspassage.spa.ui.components.AdminExitDialog
-import com.seamlesspassage.spa.ui.components.LongHoldHotspot
 import com.seamlesspassage.spa.ui.state.UiState
-import android.app.Activity
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
@@ -81,9 +77,6 @@ class MainActivity : ComponentActivity() {
 fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     val hasCameraPermission by viewModel.hasCameraPermission.collectAsState()
-    val ctx = LocalContext.current
-    val activity = ctx as? Activity
-    var showAdminDialog by remember { mutableStateOf(false) }
     var faceOverlayData by remember { mutableStateOf<FaceOverlayData?>(null) }
 
     // 避免同一提示语被重复播放过多次
@@ -171,25 +164,6 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
             statusSubtitle = status.sub,
             statusType = status.type
         )
-
-        // Hidden admin long-press hotspot (bottom-left transparent area)
-        LongHoldHotspot(
-            modifier = Modifier.align(Alignment.BottomStart),
-            holdMillis = 6000,
-            onTriggered = { showAdminDialog = true }
-        )
-
-        if (showAdminDialog) {
-            AdminExitDialog(
-                onDismiss = { showAdminDialog = false },
-                onConfirm = { pwd ->
-                    if (pwd == "123321") {
-                        showAdminDialog = false
-                        activity?.finishAffinity()
-                    }
-                }
-            )
-        }
     }
 }
 
