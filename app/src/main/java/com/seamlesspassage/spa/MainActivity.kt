@@ -121,12 +121,18 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
                 type = StatusType.Info
             )
             is UiState.AuthSuccess -> StatusUi(
-                title = "认证成功",
+                // 通过 sip2_check 且开二号门，语义是“借书成功”
+                title = "借书成功",
                 sub = "请通过",
                 type = StatusType.Success
             )
-            is UiState.Denied -> StatusUi(
+            is UiState.AuthDenied -> StatusUi(
                 title = "认证失败",
+                sub = "请联系管理员",
+                type = StatusType.Error
+            )
+            is UiState.BorrowDenied -> StatusUi(
+                title = "借书失败",
                 sub = "请联系管理员",
                 type = StatusType.Error
             )
@@ -152,8 +158,12 @@ fun SpaScreen(viewModel: AppViewModel, speak: (String) -> Unit) {
                         hasSpokenFaceDetected = true
                     }
                 }
-                is UiState.AuthSuccess -> speak("认证成功，请通过")
-                is UiState.Denied -> speak("认证失败")
+                // 借书成功：人脸已通过 + 有书 + sip2_check 允许
+                is UiState.AuthSuccess -> speak("借书成功")
+                // 认证未通过
+                is UiState.AuthDenied -> speak("认证失败")
+                // 借书失败（无书 / sip2_check 拒绝等）
+                is UiState.BorrowDenied -> speak("借书失败")
                 is UiState.Error -> speak("系统错误，请稍后重试")
             }
         }

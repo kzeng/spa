@@ -1,143 +1,5 @@
 # Seamless Passage Application (SPA) 无感通道应用
 
-## PROTO
-
-这是一个 Android App 页面，风格用 Material 3, Jetpack Compose， 运行在安卓PAD （10 inch, 16:10, 1200*1920） 上 ，竖屏显示
-
-1. 应用在无感通道上，对人脸进行识别和认证。 整个过程不需要用户与APP过多交互（无感的）， APP给出文字和语音提示，同时驱动门禁开门。
-
-2. 设计为单页面应用。
-   页面构成：
-   - 屏幕前置摄像头打开，沉浸式满屏摄像头画面。
-   - 识别到人脸后，可使用线条或者网格勾勒出人脸 （识别到人脸后才调用认证接口）
-   - 页面底部25%面积用来实时显示处理后接口返回信息
-   - 页面底部25%面积 使用半透明遮罩效果，提示信息使用大号颜色醒目的： 图标+文字
-   
-3. 处理逻辑 
-   - 屏幕前置摄像头打开，摄像头画面。
-   - 调用人脸识别库内部库（如果有就用内部库）或者第三方库
-   - 如果没有识别到人脸什么也不做
-   - 如果识别到人脸则调用人脸认证库接口(如： face_auth)
-   - 人脸认证库接口返回成功，则使用用户ID 请求 SIP2检查接口(图书馆流通接口， 如:sip2_check) 
-   - SIP2检查接口返回信息，如果成功，需要开门，则需要调用门禁开门接口（如: gate_open）
-   - 所有接口反馈后都需要处理后显示在页面底部，并语音提示。
-   
-4. 整体感觉： - 简洁 / 工业风 / 偏工具
-
-
-## 工作流
-
-CameraX 提供帧 → ML Kit 检测到人脸并输出框/trackId
-连续稳定 N 帧 → 抓取最佳帧 → 调用 face_auth（你的库/服务）
-认证成功 → sip2_check → gate_open
-底部 25% 状态区 + TTS 播报
-
-检测到人脸后会进入“人脸认证→权限检査→开门(报警)”的工作流。
-
-入口与位置：
-MainActivity.kt 的 FrontCameraPreview 回调 onFaceDetected 调用 viewModel.onFaceDetected(faceId)。
-工作流实现：app/src/main/java/com/seamlesspassage/spa/ui/AppViewModel.kt 的 onFaceDetected() 方法，依次调用：
-app/src/main/java/com/seamlesspassage/spa/services/FaceAuthService.kt：authenticate(faceId) 获取用户身份/ID
-app/src/main/java/com/seamlesspassage/spa/services/Sip2Service.kt：check(userId) 做权限/借阅/门禁校验
-app/src/main/java/com/seamlesspassage/spa/services/GateService.kt：open() 执行开门
-状态更新：AppViewModel 根据结果切换 UiState 到 AuthSuccess / Denied / Error，并由 BottomStatusPanel 与 TTS 播报。
-
-
-## TARGET
-
-- Android Studio 2025.2
-- JDK 17 (required by AGP 8.2)
-- Kotlin 1.9.22
-- Material 3 (Jetpack Compose)
-- Minimum SDK 23; Target SDK 33 (Android 13)
-
-
-## ISSUES
-
-
-现在项目里的“人脸识别”是模拟的：CameraX 仅做前置预览，定时触发 onFaceDetected()。
-要做真实识别，建议用内置库或接入第三方。最稳的是：ML Kit 做“人脸检测（框/关键点）”，然后把最佳帧送到你的 face_auth 做“人脸认证（比对身份）”。检测≠认证。
-
-
-CameraX 获取帧
-ML Kit Face Detection 判断是否有人脸、输出框/关键点
-稳定 N 帧后抓取最佳帧 → 调用 face_auth（本地模型或服务端）
-成功 → sip2_check → 需要开门 → gate_open
-底部 25% 状态区+TTS 播报
-最小接入示例（检测用 ML Kit，认证仍走你的 face_auth）
-
-// ...existing code...
-dependencies {
-    // CameraX (已集成则保留)
-    implementation("androidx.camera:camera-core:1.3.3")
-    implementation("androidx.camera:camera-camera2:1.3.3")
-    implementation("androidx.camera:camera-lifecycle:1.3.3")
-    implementation("androidx.camera:camera-view:1.3.3")
-
-    // ML Kit 人脸检测（仅检测，不做身份比对）
-    implementation("com.google.mlkit:face-detection:16.1.5")
-}
-// ...existing code...
-
-
-## BUILD & INSTALL
-Build:
---------------
-
-ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon --refresh-dependencies assembleDebug
-
-ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
-
-APK Install:
----------------
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-
-
-WiFi debug
------------------
-
-adb kill-server
-adb start-server
-adb devices
-
-
-adb connect 192.168.0.101:5555
-adb devices       # 确认有 192.168.0.101:5555 device
-
-
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-already connected to 192.168.0.101:5555
-List of devices attached
-192.168.0.101:5555      device
-
-Performing Streamed Install
-
-
-TTS
-----------
-
-
-https://ttsfree.com/#try-now  USE IT!!! DONNOT USE WAV FILES!!!!!
-
-
-cd /home/zengkai/Codes/spa/app/src/main/res/raw && 
-espeak-ng -v zh -s 140 -w prompt_idle.wav "请正对摄像头，您无须操作，等待完成识别" && 
-espeak-ng -v zh -s 140 -w prompt_verifying.wav "正在认证身份，请保持正对镜头" && 
-espeak-ng -v zh -s 140 -w prompt_success.wav "认证成功，请通过" && 
-espeak-ng -v zh -s 140 -w prompt_failed.wav "认证失败" && 
-espeak-ng -v zh -s 140 -w prompt_error.wav "系统错误，请稍后重试"
-
-
-Workflow
-==============
-
-进一步完善人脸认证工作流： FaceAuthService.authenticate()， 
-局域网会提供了人脸认证借口： 如 face_auth， 方法post
-CameraX 获取帧ML Kit Face Detection 稳定 N 帧后抓取最佳帧图片 base64编码 → 调用 face_auth（本地http服务）
-
- face_auth 可以参考人脸认证主流标准写法返回json ， （成功） 其中应包含关键字段 reader_id
-
-
 
 厂家提供的rfid无感借书通道库及示例代码： /home/zengkai/Codes/QBChannelAS
 1. 仔细阅读代码，分析归纳功能接口
@@ -147,7 +9,6 @@ CameraX 获取帧ML Kit Face Detection 稳定 N 帧后抓取最佳帧图片 base
    - 能控制（开门）通道的一号门（借书进入通道，人脸认证成功后开） 和 二号门（借书成功后开）， 一号门至二号门是出馆方向。
    - 读取图书标签信息借口。 当通道的一号门打开，读者进入通道时启动盘点，读取图书信息 （仅读标签， 不写防盗位，不写标签， 写操作由厂家设备自动完成），读到图书信息成功则开二号门，读者离开;否则，开一号门，读者退回。
    
-
 
 当前状态小结：
 
@@ -176,39 +37,6 @@ Steps
 在 MainActivity.kt 或 SpaScreen 组合函数里，通过 LaunchedEffect(Unit) 或生命周期回调，在 APP 首帧渲染时调用 viewModel.initChannelOnStart()，确保设备在用户看到界面时就已建立连接并完成初始化。
 如有需要，在底部状态区和 TTS 中增加“通道初始化中 / 初始化失败”的状态提示，帮助现场运维快速判断设备连通性问题。
 
-
-
-
-希望盘点图书得到图书信息如下： 每本书由epc (长度32Bytes) + uid 构成 , 
-   "tags": [
-      ["<epc1>", "<uid1>"],
-      ["<epc2>", "<uid2>"],
-      ...
-   ]
-tags 不为空视为成功， 然后发起sip2_check接口调用 （参数： reader_id + tags)
-
-tags 为空便是失败。
-
-
-其中： sip2_check接口 说明
-
-为 http://127.0.0.1:8080/sip2_check 接口输入参数，输出信息
-
-SIP2检查接口 主要连接图书馆流通系统，具体内部业务处理逻辑忽略。
-
-输入参数： reader_id + tags
-输出信息： 借书成功 或者 借书失败
-
-每本书由epc (长度32个十六进制字符) + uid 构成 , 
-   "tags": [
-      ["<epc1>", "<uid1>"],
-      ["<epc2>", "<uid2>"],
-      ...
-   ]
-
-后续逻辑： 
-借书成功 ， 语音播报 “借书成功” 并开二号门
-借书失败 ， 语音播报 “借书失败” 并开一号门
 
 
 盘点结果：
@@ -355,7 +183,3 @@ tags: [[ "<epc1>", "<uid1>" ], ...]
    - 先在“模拟通道 + 模拟 HTTP”环境下验证 UI 流程闭环；
    - 再逐步切换为“真实通道 + 模拟 HTTP”、“真实通道 + 真实 HTTP”，分步排除问题。
 
-### 五、部署与版本管理
-
-- 确认使用的 APK 版本号与 TODO/flow 文档描述的实现一致（例如是否已经包含 QbChannelRfidChannelService 与启动时 initChannelOnStart 流程）。
-- 若后续对串口号、门号映射或标签解析逻辑做了修改，务必在 TODO.md / flow.md 中更新对应说明，避免现场文档与代码脱节。

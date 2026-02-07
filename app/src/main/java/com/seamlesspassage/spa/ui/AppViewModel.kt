@@ -59,7 +59,8 @@ class AppViewModel : ViewModel() {
                                 // tags 不为空才发起 sip2_check
                                 if (tags.isEmpty()) {
                                     gate.openEntryDoor()
-                                    _uiState.value = UiState.Denied
+                                    // 认证已通过，但未读到书，视为借书失败
+                                    _uiState.value = UiState.BorrowDenied
                                 } else {
                                     val check = sip2.check(auth.userId, tags)
                                     when (check) {
@@ -72,7 +73,7 @@ class AppViewModel : ViewModel() {
                                         is Sip2Result.Denied -> {
                                             // 借书失败：开一号门退回
                                             gate.openEntryDoor()
-                                            _uiState.value = UiState.Denied
+                                            _uiState.value = UiState.BorrowDenied
                                         }
                                     }
                                 }
@@ -80,7 +81,7 @@ class AppViewModel : ViewModel() {
                             InventoryResult.NoTags -> {
                                 // 未读到任何标签，视为失败：开一号门退回
                                 gate.openEntryDoor()
-                                _uiState.value = UiState.Denied
+                                _uiState.value = UiState.BorrowDenied
                             }
                             is InventoryResult.Error -> {
                                 // 盘点错误，同样开一号门退回，前端显示错误信息
@@ -89,7 +90,7 @@ class AppViewModel : ViewModel() {
                             }
                         }
                     }
-                    is FaceAuthResult.Failure -> _uiState.value = UiState.Denied
+                    is FaceAuthResult.Failure -> _uiState.value = UiState.AuthDenied
                 }
                 // auto reset back to idle after few seconds
                 delay(3000)

@@ -33,6 +33,12 @@ class AudioPromptManager(context: Context) {
         // 认证失败
         "认证失败" -> R.raw.prompt_failed
 
+        // 借书成功
+        "借书成功" -> R.raw.prompt_borrow_success
+
+        // 借书失败
+        "借书失败" -> R.raw.prompt_borrow_failed
+
         // 系统错误
         "系统错误，请稍后重试" -> R.raw.prompt_error
 
