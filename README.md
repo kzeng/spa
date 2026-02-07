@@ -44,9 +44,12 @@
 		- `app/src/main/java/com/seamlesspassage/spa/services/FaceAuthService.kt`
 		- `app/src/main/java/com/seamlesspassage/spa/services/Sip2Service.kt`
 		- `app/src/main/java/com/seamlesspassage/spa/services/GateService.kt`
-- **文档与原型**：
-	- `docs`
-	- `spa_proto.jpeg`（UI 原型图）
+- **文档**：
+	- `docs/API.md`    **需要对齐的接口，重要！**
+	- `docs/Flow.png`  **业务流程，重要！**
+	- `docs/TODO.md`   **调试和实施前必看，重要！**
+    - `docs/CMD.md`    常用命令
+	- `spa_proto.jpeg` UI原型图
 
 
 
