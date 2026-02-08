@@ -1,6 +1,13 @@
 # 无感通道应用  Seamless Passage Application（SPA）
 
 
+## 原始项目地址
+https://github.com/kzeng/spa
+
+## Release 
+https://github.com/kzeng/spa/releases
+
+
 ## 运行流程（工作流）
 ![Libra 工作流示意](./docs/Flow.png)
 
