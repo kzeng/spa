@@ -4,7 +4,7 @@
 ## 原始项目地址
 https://github.com/kzeng/spa
 
-## Release 
+## Releases
 https://github.com/kzeng/spa/releases
 
 
