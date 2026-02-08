@@ -22,7 +22,7 @@ adb kill-server
 adb start-server
 adb devices
 
-adb connect 192.168.0.101:5555
+adb connect 192.168.0.101:5555  #这里的IP 使用你安卓设备的实际IP地址
 adb devices       # 确认有 192.168.0.101:5555 device
 
 

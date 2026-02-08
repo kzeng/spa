@@ -1,11 +1,12 @@
-# 无感通道应用  Seamless Passage Application（SPA）
+# 无感通道应用   
+# Seamless Passage Application（SPA）  
 
 
 ## 原始项目地址
-https://github.com/kzeng/spa
+### https://github.com/kzeng/spa
 
 ## Releases
-https://github.com/kzeng/spa/releases
+### https://github.com/kzeng/spa/releases
 
 
 ## 运行流程（工作流）
@@ -52,9 +53,9 @@ https://github.com/kzeng/spa/releases
 		- `app/src/main/java/com/seamlesspassage/spa/services/Sip2Service.kt`
 		- `app/src/main/java/com/seamlesspassage/spa/services/GateService.kt`
 - **文档**：
-	- `docs/API.md`    **需要对齐的接口，重要！**
-	- `docs/Flow.png`  **业务流程，重要！**
-	- `docs/TODO.md`   **调试和实施前必看，重要！**
+	- `docs/API.md`    **需要对齐的接口，重要!!！**
+	- `docs/Flow.png`  **业务流程，重要！!!**
+	- `docs/TODO.md`   **调试和实施前必看，重要！!!**
     - `docs/CMD.md`    常用命令
 	- `spa_proto.jpeg` UI原型图
 
