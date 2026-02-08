@@ -6,51 +6,6 @@
 
 - URL：`http://127.0.0.1:8080/face_auth`  
 - 方法：`POST`  
-- 功能：根据传入的人脸图像（base64 编码）做一次人脸认证，返回对应的读者 ID，用于后续 SIP2 检查和门禁开门。
-
-**请求参数**
-
-- 请求头：
-  - `Content-Type: application/json; charset=utf-8`
-- 请求体（JSON）：
-
-  ```json
-  {
-    "image_base64": "<字符串，单张人脸图片的 Base64 编码>"
-  }
-  ```
-
-  说明：
-  - `image_base64`：必填，前端从摄像头抓取的最佳帧图像做 Base64 编码后的字符串，建议是单人脸、正面、清晰图像。
-
-**响应参数**
-
-- 成功时（认证通过）示例：
-
-  ```json
-  {
-    "reader_id": "1234567890"
-  }
-  ```
-
-  - `reader_id`：字符串，认证通过后识别出的读者唯一标识（例如借阅证号或用户 ID）。  
-  - 在代码中：`reader_id` 非空 → 视为成功，返回 `FaceAuthResult.Success(userId = reader_id)`。
-
-- 失败时（认证未通过或系统错误）：
-
-  - 可能返回非 2xx 状态码（例如 4xx/5xx），或返回 JSON 中没有 `reader_id` 字段 / 字段为空：
-    - 对 SPA 而言，只要：
-      - HTTP 非成功状态，或  
-      - 响应体缺少 `reader_id` / 为空  
-    - 都视为失败，返回 `FaceAuthResult.Failure`，前端走“认证失败”流程。
-
-你如果需要，我可以再帮你写一段这个接口的 README 片段，方便给后端同事对接。
-
-User: 为 http://127.0.0.1:8080/face_auth  接口写个简单说明，功能，输入参数， 输出参数
-
-GitHub Copilot: **接口地址**
-
-- `POST http://127.0.0.1:8080/face_auth`
 
 **功能说明**
 
@@ -111,7 +66,6 @@ GitHub Copilot: **接口地址**
 - 若 HTTP 非 2xx，或 Body 为空 → 视为失败。
 - 若 JSON 中 `reader_id` 非空 → 视为成功，进入后续 `sip2_check` 流程。  
 - 若 `reader_id` 缺失或为空字符串 → 视为认证失败。
-
 
 
 
