@@ -1,5 +1,4 @@
 ## TARGET
-
 - Android Studio 2025.2
 - JDK 17 (required by AGP 8.2)
 - Kotlin 1.9.22
@@ -9,12 +8,10 @@
 
 
 ## Build
---------------
 ANDROID_SDK_ROOT="$HOME/Android/Sdk" "$HOME/.gradle/wrapper/dists/gradle-8.13-bin/ap7pdhvhnjtc6mxtzz89gkh0c/gradle-8.13/bin/gradle" --no-daemon assembleDebug
 
 
-## Install APK:
----------------
+## Install APK
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 
