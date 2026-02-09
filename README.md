@@ -9,7 +9,7 @@
 ### https://github.com/kzeng/spa/releases
 
 
-## 应用场景 Channel
+## 应用场景
 
 ![应用场景](./docs/channel.jpg)
 
