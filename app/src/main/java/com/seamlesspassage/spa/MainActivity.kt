@@ -2,6 +2,7 @@ package com.seamlesspassage.spa
 
 import android.Manifest
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import com.seamlesspassage.spa.camera.FaceOverlayData
 import com.seamlesspassage.spa.camera.FrontCameraPreview
 import com.seamlesspassage.spa.speech.AudioPromptManager
@@ -37,6 +39,7 @@ import com.seamlesspassage.spa.ui.AppViewModel
 import com.seamlesspassage.spa.ui.components.BottomStatusPanel
 import com.seamlesspassage.spa.ui.components.StatusType
 import com.seamlesspassage.spa.ui.state.UiState
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AppViewModel by viewModels()
@@ -63,6 +66,56 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     SpaScreen(viewModel = viewModel, speak = { audio?.speak(it) })
                 }
+            }
+        }
+
+        // 启动时自动检查更新
+        checkForUpdatesOnStartup()
+    }
+
+    private fun checkForUpdatesOnStartup() {
+        lifecycleScope.launch {
+            try {
+                Log.d("MainActivity", "开始检查更新...")
+                val result = UpdateManager.checkForUpdates(this@MainActivity)
+                
+                when (result) {
+                    is UpdateResult.UpToDate -> {
+                        Log.d("MainActivity", "当前已是最新版本")
+                    }
+                    is UpdateResult.UpdateAvailable -> {
+                        Log.d("MainActivity", "发现新版本: ${result.newVersion}，开始自动下载...")
+                        // 自动下载并安装
+                        val installResult = UpdateManager.downloadAndInstall(
+                            this@MainActivity,
+                            result.downloadUrl
+                        )
+                        
+                        when (installResult) {
+                            is UpdateResult.UpdatedWithPath -> {
+                                Log.d("MainActivity", "下载完成，已触发安装: ${installResult.apkPath}")
+                                // 此时会弹出系统安装界面，用户需要手动确认
+                            }
+                            is UpdateResult.ErrorWithPath -> {
+                                Log.e("MainActivity", "更新失败: ${installResult.reason}, APK路径: ${installResult.apkPath}")
+                            }
+                            is UpdateResult.Error -> {
+                                Log.e("MainActivity", "更新失败: ${installResult.reason}")
+                            }
+                            else -> {
+                                Log.d("MainActivity", "更新结果: $installResult")
+                            }
+                        }
+                    }
+                    is UpdateResult.Error -> {
+                        Log.e("MainActivity", "检查更新失败: ${result.reason}")
+                    }
+                    else -> {
+                        Log.d("MainActivity", "更新检查结果: $result")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "检查更新异常", e)
             }
         }
     }

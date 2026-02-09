@@ -101,7 +101,7 @@ fun BottomStatusPanel(
                 )
                 Text(
                     text = statusTitle,
-                    fontSize = 32.sp,
+                    fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -110,7 +110,7 @@ fun BottomStatusPanel(
             if (!statusSubtitle.isNullOrBlank()) {
                 Text(
                     text = statusSubtitle!!,
-                    fontSize = 22.sp,
+                    fontSize = 33.sp,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -124,7 +124,7 @@ fun BottomStatusPanel(
                 ) {
                     Text(
                         text = footerText,
-                        fontSize = 13.sp,
+                        fontSize = 20.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                         modifier = Modifier.align(Alignment.Center)
                     )
