@@ -1,5 +1,6 @@
 package com.seamlesspassage.spa.services
 
+import com.seamlesspassage.spa.AppConfig
 import kotlinx.coroutines.delay
 
 /**
@@ -64,19 +65,19 @@ sealed class InventoryResult {
 class SimulatedRfidChannelService : RfidChannelService {
 
     override suspend fun connect(): ChannelConnectResult {
-        delay(200)
+        delay(AppConfig.CONNECT_DELAY_MS)
         return ChannelConnectResult.Connected
     }
 
     override suspend fun openDoor(door: DoorId): DoorControlResult {
-        delay(150)
+        delay(AppConfig.OPEN_DOOR_DELAY_MS)
         // 这里可以根据 door 做不同日志/调试输出，当前统一视为成功
         return DoorControlResult.Opened
     }
 
     override suspend fun startInventory(timeoutMillis: Long): InventoryResult {
         // 模拟盘点耗时
-        delay(500)
+        delay(AppConfig.INVENTORY_DELAY_MS)
         // 简单随机：大部分情况读到标签，少数情况无标签
         return if ((0..9).random() < 8) {
             InventoryResult.Success(

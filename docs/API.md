@@ -1,10 +1,50 @@
 
 
+# 应用配置说明
+
+## 集中配置管理
+
+SPA 应用的所有配置现在都集中在 `AppConfig.kt` 文件中管理，包括：
+
+### HTTP 接口配置
+- `BASE_URL = "http://127.0.0.1:8080"`
+- `FACE_AUTH_ENDPOINT = "$BASE_URL/face_auth"`
+- `SIP2_CHECK_ENDPOINT = "$BASE_URL/sip2_check"`
+
+### 厂家通道配置
+- `SERIAL_PORT_PATH = "/dev/ttyS4"`
+- `BAUD_RATE = 115200`
+- `FRAME_FORMAT = "8N1"`
+- `DEVICE_ADDR = 255`
+
+### 超时配置
+- `DEFAULT_INVENTORY_TIMEOUT_MS = 5_000L`
+- `ENTRY_DOOR_DELAY_MS = 300L`
+- `CONNECT_DELAY_MS = 200L`
+- `OPEN_DOOR_DELAY_MS = 150L`
+- `INVENTORY_DELAY_MS = 500L`
+
+### 门控制映射
+- `DoorId.ENTRY_1` → `1` (一号门进闸)
+- `DoorId.EXIT_2` → `2` (二号门出闸)
+
+### 通道参数配置
+- 借书/还书/验证使能
+- 进入通道超时
+- 开门延时
+- RFID 功率和频率设置
+
+## 配置修改方法
+
+所有配置修改只需在 `AppConfig.kt` 文件中进行，无需在多个文件中搜索和替换。
+
+---
+
 # 人脸认证接口 `face_auth`
 
  **接口概述**
 
-- URL：`http://127.0.0.1:8080/face_auth`  
+- URL：`${AppConfig.FACE_AUTH_ENDPOINT}` (默认: `http://127.0.0.1:8080/face_auth`)  
 - 方法：`POST`  
 
 **功能说明**

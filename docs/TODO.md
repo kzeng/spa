@@ -2,6 +2,22 @@
 
 
 
+## 集中配置管理
+
+所有应用配置现在都集中在 `AppConfig.kt` 文件中管理，包括：
+
+### 配置项说明
+- **HTTP 接口配置**：`BASE_URL`、`FACE_AUTH_ENDPOINT`、`SIP2_CHECK_ENDPOINT`
+- **厂家通道配置**：`SERIAL_PORT_PATH`、`BAUD_RATE`、`FRAME_FORMAT`、`DEVICE_ADDR`
+- **超时配置**：`DEFAULT_INVENTORY_TIMEOUT_MS`、`ENTRY_DOOR_DELAY_MS` 等
+- **门控制映射**：`DoorId.ENTRY_1` → `1`、`DoorId.EXIT_2` → `2`
+- **通道参数配置**：借书/还书/验证使能、RFID 功率和频率设置等
+
+### 配置修改方法
+所有配置修改只需在 `AppConfig.kt` 文件中进行，无需在多个文件中搜索和替换。
+
+---
+
 ## 上线调试与实施检查清单（要点）
 
 > 详细流程与架构请参考 flow.md，这里列的是现场调试/上线时需要一条条核对的关键项。
@@ -9,8 +25,8 @@
 ### 一、本地 HTTP 服务（127.0.0.1:8080）
 
 - 确认本地服务进程已启动，`/face_auth` 与 `/sip2_check` 均可通过 curl 或 Postman 在设备上访问：
-   - `curl -X POST http://127.0.0.1:8080/face_auth`
-   - `curl -X POST http://127.0.0.1:8080/sip2_check`
+   - `curl -X POST ${AppConfig.FACE_AUTH_ENDPOINT}`
+   - `curl -X POST ${AppConfig.SIP2_CHECK_ENDPOINT}`
 - `/face_auth`：
    - 请求体字段名为 `image_base64`（纯 Base64 字符串，无 data: 前缀）。
    - 成功示例响应应包含非空 `reader_id` 字段；失败时可返回 4xx/5xx 或缺失/置空 `reader_id`。

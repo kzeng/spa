@@ -9,8 +9,12 @@
 ### https://github.com/kzeng/spa/releases
 
 
+## 应用场景 Channel
+
+![应用场景](./docs/channel.jpg)
+
 ## 运行流程（工作流）
-![Libra 工作流示意](./docs/Flow.png)
+![工作流](./docs/Flow.png)
 
 ## UI原型
 

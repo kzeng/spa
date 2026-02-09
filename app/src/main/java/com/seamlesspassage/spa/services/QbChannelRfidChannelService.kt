@@ -1,5 +1,6 @@
 package com.seamlesspassage.spa.services
 
+import com.seamlesspassage.spa.AppConfig
 import com.rfid.api.ADReaderInterface
 import com.rfid.def.ApiErrDefinition
 import com.rfid.def.RfidDef
@@ -16,9 +17,9 @@ import kotlinx.coroutines.withContext
  *  - 读取通道缓冲中的标签记录，转换为简单的 RfidTag 列表
  */
 class QbChannelRfidChannelService(
-    private val serialPortPath: String = "/dev/ttyS4",
-    private val baudRate: Int = 115200,
-    private val frame: String = "8N1"
+    private val serialPortPath: String = AppConfig.SERIAL_PORT_PATH,
+    private val baudRate: Int = AppConfig.BAUD_RATE,
+    private val frame: String = AppConfig.FRAME_FORMAT
 ) : RfidChannelService {
 
     private val reader = ADReaderInterface()
@@ -30,7 +31,7 @@ class QbChannelRfidChannelService(
      * RDType=QBChannel;CommType=COM;ComPath=/dev/ttySx;Baund=115200;Frame=8N1;Addr=255
      */
     private fun buildConnStr(): String =
-        "RDType=QBChannel;CommType=COM;ComPath=$serialPortPath;Baund=$baudRate;Frame=$frame;Addr=255"
+        AppConfig.buildConnectionString(serialPortPath, baudRate, frame)
 
     override suspend fun connect(): ChannelConnectResult = withContext(Dispatchers.IO) {
         if (connected && initialized) {
@@ -44,29 +45,30 @@ class QbChannelRfidChannelService(
         }
         connected = true
 
-        // 配置闸机参数：这里给出比较保守的默认值，借/还/验证均启用，超时与延时可按需调整
-        val borrowEnable: Byte = 1
-        val returnEnable: Byte = 1
-        val verifyEnable: Byte = 1
-        val inTimeout: Byte = 10  // 读者进入通道超时（秒）
-        val delayOpen: Byte = 0   // 开门延时
-        val cfgRet = reader.QBCHANNEL_CFG_TurnstileParam(borrowEnable, returnEnable, verifyEnable, inTimeout, delayOpen)
+        // 配置闸机参数：使用集中配置
+        val cfgRet = reader.QBCHANNEL_CFG_TurnstileParam(
+            AppConfig.BORROW_ENABLE,
+            AppConfig.RETURN_ENABLE,
+            AppConfig.VERIFY_ENABLE,
+            AppConfig.IN_TIMEOUT,
+            AppConfig.DELAY_OPEN
+        )
         if (cfgRet != ApiErrDefinition.NO_ERROR) {
             return@withContext ChannelConnectResult.Failed("QBCHANNEL_CFG_TurnstileParam 失败: code=$cfgRet")
         }
 
-        // 初始化 QB 通道：仅读标签，不写 EAS/AFI，不读取条码
-        val exitFlag: Byte = 0        // 0=借书；1=还书，按需调整
-        val blockOffset: Char = 0.toChar() // 不读取条码
-        val blockNum: Byte = 0        // 0 表示不读取条码
-        val bEas = false
-        val bAfi = false
-        val afiReturn: Byte = 0x00
-        val afiBorrow: Byte = 0x00
-        val rfPower: Byte = 0        // 0 表示不改功率，沿用设备配置
-        val rfFreqLevel: Byte = 0    // 0 表示默认倍频
-
-        val initRet = reader.QB_CHANNEL_Init(exitFlag, blockOffset, blockNum, bEas, bAfi, afiReturn, afiBorrow, rfPower, rfFreqLevel)
+        // 初始化 QB 通道：仅读标签，不写 EAS/AFI，不读取条码，使用集中配置
+        val initRet = reader.QB_CHANNEL_Init(
+            AppConfig.EXIT_FLAG,
+            AppConfig.BLOCK_OFFSET,
+            AppConfig.BLOCK_NUM,
+            AppConfig.B_EAS,
+            AppConfig.B_AFI,
+            AppConfig.AFI_RETURN,
+            AppConfig.AFI_BORROW,
+            AppConfig.RF_POWER,
+            AppConfig.RF_FREQ_LEVEL
+        )
         if (initRet != ApiErrDefinition.NO_ERROR) {
             return@withContext ChannelConnectResult.Failed("QB_CHANNEL_Init 失败: code=$initRet")
         }
@@ -83,16 +85,8 @@ class QbChannelRfidChannelService(
             }
         }
 
-        // 通道状态控制：
-        // Demo 中使用 QB_SetChannelState / QB_GetChannelState、QB_DetectBooks 等接口控制闸机与盘点。
-        // 这里简单约定：
-        //  - ENTRY_1：设置为“允许进闸”
-        //  - EXIT_2 ：设置为“允许出闸”
-        // 具体参数含义需结合厂家文档，如有偏差可在此处微调。
-        val channelState: Byte = when (door) {
-            DoorId.ENTRY_1 -> 1  // 示例：1=进闸
-            DoorId.EXIT_2 -> 2   // 示例：2=出闸
-        }
+        // 通道状态控制：使用集中配置中的门状态映射
+        val channelState: Byte = AppConfig.getDoorState(door).toByte()
         val ret = reader.QB_SetChannelState(channelState)
         if (ret != ApiErrDefinition.NO_ERROR) {
             return@withContext DoorControlResult.Failed("QB_SetChannelState 失败: code=$ret")

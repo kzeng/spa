@@ -1,5 +1,6 @@
 package com.seamlesspassage.spa.services
 
+import com.seamlesspassage.spa.AppConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,7 +27,7 @@ class Sip2Service {
     suspend fun check(readerId: String, tags: List<RfidTag>): Sip2Result {
         return withContext(Dispatchers.IO) {
             try {
-                val endpoint = "http://127.0.0.1:8080/sip2_check"
+                val endpoint = AppConfig.SIP2_CHECK_ENDPOINT
 
                 val tagsArray = JSONArray().apply {
                     for (tag in tags) {

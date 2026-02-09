@@ -22,8 +22,8 @@
   - QbChannelRfidChannelService：对接厂家 QB 通道库（anreaderlib.jar + so）
   - SimulatedRfidChannelService：模拟实现（无需硬件）
 - 外部依赖
-  - 本地 HTTP 服务：`http://127.0.0.1:8080`（face_auth / sip2_check）
-  - 厂家 RFID 无感借书通道（串口 /dev/ttyS4）
+  - 本地 HTTP 服务：`${AppConfig.BASE_URL}`（默认：`http://127.0.0.1:8080`）
+  - 厂家 RFID 无感借书通道（串口 `${AppConfig.SERIAL_PORT_PATH}`，默认：`/dev/ttyS4`）
 
 ---
 

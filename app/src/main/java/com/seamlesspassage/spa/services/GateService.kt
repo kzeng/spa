@@ -1,5 +1,6 @@
 package com.seamlesspassage.spa.services
 
+import com.seamlesspassage.spa.AppConfig
 import kotlinx.coroutines.delay
 
 sealed class GateResult {
@@ -81,7 +82,7 @@ class GateService(
         }
 
         // 给读者一点时间进入通道
-        delay(300)
+        delay(AppConfig.ENTRY_DOOR_DELAY_MS)
 
         // 启动盘点
         return channel.startInventory()

@@ -1,5 +1,6 @@
 package com.seamlesspassage.spa.services
 
+import com.seamlesspassage.spa.AppConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -19,7 +20,7 @@ class FaceAuthService {
     suspend fun authenticate(faceImageBase64: String): FaceAuthResult {
         return withContext(Dispatchers.IO) {
             try {
-                val endpoint = "http://127.0.0.1:8080/face_auth"
+                val endpoint = AppConfig.FACE_AUTH_ENDPOINT
                 val payload = JSONObject().apply {
                     put("image_base64", faceImageBase64)
                 }
