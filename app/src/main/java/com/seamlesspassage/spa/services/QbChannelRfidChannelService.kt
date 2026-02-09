@@ -158,7 +158,9 @@ class QbChannelRfidChannelService(
                             val uidHex = bytesToHex(uid, uidSize[0].toInt())
                             // 厂家 Demo 中 user 区通常承载 EPC/业务数据，这里按十六进制字符串输出
                             val epcHex = if (userSize[0] > 0) {
-                                bytesToHex(user, userSize[0].toInt())
+                                val hex = bytesToHex(user, userSize[0].toInt())
+                                // 确保 EPC 符合 16 字节（32 个十六进制字符）的要求
+                                normalizeEpc(hex)
                             } else {
                                 ""
                             }
@@ -193,5 +195,27 @@ class QbChannelRfidChannelService(
             sb.append(String.format("%02X", bytes[i]))
         }
         return sb.toString()
+    }
+
+    /**
+     * 规范化 EPC 字符串，确保符合 16 字节（32 个十六进制字符）的要求。
+     * 
+     * 处理规则：
+     * 1. 如果长度正好是 32 个字符，直接返回
+     * 2. 如果长度大于 32 个字符，截取前 32 个字符
+     * 3. 如果长度小于 32 个字符，用 '0' 填充到 32 个字符
+     * 4. 确保所有字符都是有效的十六进制字符（0-9, A-F）
+     */
+    private fun normalizeEpc(epc: String): String {
+        if (epc.isEmpty()) return ""
+        
+        // 过滤非十六进制字符，只保留 0-9, A-F
+        val filtered = epc.uppercase().filter { it in '0'..'9' || it in 'A'..'F' }
+        
+        return when {
+            filtered.length == 32 -> filtered
+            filtered.length > 32 -> filtered.substring(0, 32)
+            else -> filtered.padEnd(32, '0') // 用 '0' 填充到 32 个字符
+        }
     }
 }

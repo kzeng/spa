@@ -44,7 +44,7 @@ sealed class DoorControlResult {
 /**
  * 通道盘点得到的单本图书标签信息。
  *
- * - epc: 业务 EPC 编码，长度约定为 32 Bytes（建议用 64 个十六进制字符表示）；
+ * - epc: 业务 EPC 编码，长度约定为 16 Bytes（建议用 32 个十六进制字符表示）；
  * - uid: 芯片出厂唯一 UID 标识。
  */
 data class RfidTag(
@@ -82,7 +82,7 @@ class SimulatedRfidChannelService : RfidChannelService {
             InventoryResult.Success(
                 listOf(
                     RfidTag(
-                        epc = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+                        epc = "0123456789ABCDEF0123456789ABCDEF", // 16字节 = 32个十六进制字符
                         uid = "SIM_TAG_123456"
                     )
                 )
