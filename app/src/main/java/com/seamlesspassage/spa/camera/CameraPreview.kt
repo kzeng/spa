@@ -107,8 +107,9 @@ private fun startCamera(
     }, ContextCompat.getMainExecutor(context))
 }
 
-private const val STABLE_FRAMES_REQUIRED = 3
-private const val IOU_THRESHOLD = 0.9f
+private const val STABLE_FRAMES_REQUIRED = 2
+private const val IOU_THRESHOLD = 0.7f
+private const val NO_FACE_FRAMES_THRESHOLD = 60  // 连续60帧无人脸才清除overlay (约2秒)
 
 @Volatile
 private var lastFaceBounds: NormalizedRect? = null
@@ -118,6 +119,12 @@ private var stableFrameCount: Int = 0
 
 @Volatile
 private var hasTriggeredForCurrentFace: Boolean = false
+
+@Volatile
+private var noFaceFrameCount: Int = 0
+
+@Volatile
+private var lastOverlayData: FaceOverlayData? = null
 
 private fun processImageProxy(
     detector: FaceDetector,
@@ -149,6 +156,9 @@ private fun processImageProxy(
     detector.process(image)
         .addOnSuccessListener { faces ->
             if (faces.isNotEmpty()) {
+                // 检测到人脸，重置无人脸计数
+                noFaceFrameCount = 0
+                
                 val primary = faces.first()
 
                 val box = primary.boundingBox
@@ -184,7 +194,6 @@ private fun processImageProxy(
 
                 // 预分配足够的容量以提高性能（约158个点）
                 val points = mutableListOf<NormalizedPoint>()
-                points.ensureCapacity(160)
                 points.addAll(base.values)
 
                 // derive extra points for forehead / brows / nose bridge / jaw line
@@ -232,10 +241,10 @@ private fun processImageProxy(
                 // jaw line: interpolate from each ear to chin（加密一些点）
                 val mouthBottom = base[FaceLandmark.MOUTH_BOTTOM]
                 val chinY = bounds.bottom - faceHeight * 0.03f
+                val leftEar = base[FaceLandmark.LEFT_EAR]
+                val rightEar = base[FaceLandmark.RIGHT_EAR]
                 if (mouthBottom != null) {
                     val chin = NormalizedPoint(mouthBottom.x, chinY)
-                    val leftEar = base[FaceLandmark.LEFT_EAR]
-                    val rightEar = base[FaceLandmark.RIGHT_EAR]
                     val steps = 25  // 从10增加到25，获得更平滑的下巴线
                     if (leftEar != null) {
                         for (i in 0..steps) {
@@ -256,8 +265,6 @@ private fun processImageProxy(
                 }
 
                 // 眼睛轮廓：为左右眼添加圆形轮廓点
-                val leftEye = base[FaceLandmark.LEFT_EYE]
-                val rightEye = base[FaceLandmark.RIGHT_EYE]
                 if (leftEye != null) {
                     val eyeRadius = faceWidth * 0.05f
                     val eyeSteps = 12  // 每个眼睛12个点
@@ -307,8 +314,6 @@ private fun processImageProxy(
                 }
 
                 // 脸颊轮廓：连接耳朵到下巴的额外点
-                val leftCheek = base[FaceLandmark.LEFT_CHEEK]
-                val rightCheek = base[FaceLandmark.RIGHT_CHEEK]
                 if (leftCheek != null && leftEar != null && mouthBottom != null) {
                     val cheekSteps = 8
                     for (i in 0..cheekSteps) {
@@ -328,13 +333,15 @@ private fun processImageProxy(
                     }
                 }
 
-                onFaceOverlay(
-                    FaceOverlayData(
-                        bounds = bounds,
-                        landmarks = points,
-                        imageAspect = if (imageHeight != 0f) imageWidth / imageHeight else 1f,
-                    )
+                val overlayData = FaceOverlayData(
+                    bounds = bounds,
+                    landmarks = points,
+                    imageAspect = if (imageHeight != 0f) imageWidth / imageHeight else 1f,
                 )
+                
+                // 保存并显示overlay
+                lastOverlayData = overlayData
+                onFaceOverlay(overlayData)
 
                 val previousBounds = lastFaceBounds
                 if (previousBounds == null) {
@@ -361,10 +368,22 @@ private fun processImageProxy(
                     }
                 }
             } else {
-                onFaceOverlay(null)
-                lastFaceBounds = null
-                stableFrameCount = 0
-                hasTriggeredForCurrentFace = false
+                // 没有检测到人脸，增加计数
+                noFaceFrameCount += 1
+                
+                // 只有连续多帧无人脸才清除overlay，保持最后一次的显示
+                if (noFaceFrameCount >= NO_FACE_FRAMES_THRESHOLD) {
+                    onFaceOverlay(null)
+                    lastFaceBounds = null
+                    stableFrameCount = 0
+                    hasTriggeredForCurrentFace = false
+                    lastOverlayData = null
+                } else {
+                    // 在缓冲期内，继续显示上一次的overlay
+                    if (lastOverlayData != null) {
+                        onFaceOverlay(lastOverlayData)
+                    }
+                }
             }
         }
         .addOnFailureListener { e ->
