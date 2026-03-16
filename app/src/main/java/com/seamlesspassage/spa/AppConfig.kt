@@ -20,7 +20,7 @@ object AppConfig {
     
     // ==================== 超时配置 ====================
     const val DEFAULT_INVENTORY_TIMEOUT_MS = 5_000L
-    const val ENTRY_DOOR_DELAY_MS = 300L
+    const val ENTRY_DOOR_DELAY_MS = 3000L
     const val CONNECT_DELAY_MS = 200L
     const val OPEN_DOOR_DELAY_MS = 150L
     const val INVENTORY_DELAY_MS = 500L

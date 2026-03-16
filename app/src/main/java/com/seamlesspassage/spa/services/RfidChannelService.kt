@@ -93,3 +93,50 @@ class SimulatedRfidChannelService : RfidChannelService {
         }
     }
 }
+
+/**
+ * 模拟的 QbChannelService 实现，用于测试和开发环境。
+ */
+class SimulatedQbChannelService : QbChannelService {
+
+    override suspend fun connect(): ChannelConnectResult {
+        delay(AppConfig.CONNECT_DELAY_MS)
+        return ChannelConnectResult.Connected
+    }
+
+    override suspend fun authenticate(flag: Byte): DoorControlResult {
+        delay(AppConfig.OPEN_DOOR_DELAY_MS)
+        // 模拟认证成功
+        return DoorControlResult.Opened
+    }
+
+    override suspend fun detectBooks(detectResult: Byte): DoorControlResult {
+        delay(AppConfig.OPEN_DOOR_DELAY_MS)
+        // 模拟检测结果处理成功
+        return DoorControlResult.Opened
+    }
+
+    override suspend fun openDoor(door: DoorId): DoorControlResult {
+        delay(AppConfig.OPEN_DOOR_DELAY_MS)
+        // 这里可以根据 door 做不同日志/调试输出，当前统一视为成功
+        return DoorControlResult.Opened
+    }
+
+    override suspend fun startInventory(timeoutMillis: Long): InventoryResult {
+        // 模拟盘点耗时
+        delay(AppConfig.INVENTORY_DELAY_MS)
+        // 简单随机：大部分情况读到标签，少数情况无标签
+        return if ((0..9).random() < 8) {
+            InventoryResult.Success(
+                listOf(
+                    RfidTag(
+                        epc = "0123456789ABCDEF0123456789ABCDEF", // 16字节 = 32个十六进制字符
+                        uid = "SIM_TAG_123456"
+                    )
+                )
+            )
+        } else {
+            InventoryResult.NoTags
+        }
+    }
+}

@@ -37,6 +37,8 @@ class GateService(
 
     /**
      * 打开一号门（进馆方向）。
+     * 对于 QbChannelService：使用 QB_DetectBooks(detectResult=0) 开一号门退回
+     * 对于普通 RfidChannelService：使用 openDoor(DoorId.ENTRY_1)
      */
     suspend fun openEntryDoor(): GateResult {
         when (val c = channel.connect()) {
@@ -44,14 +46,23 @@ class GateService(
             is ChannelConnectResult.Failed -> return GateResult.Failed("通道连接失败: ${c.message}")
         }
 
-        return when (val d1 = channel.openDoor(DoorId.ENTRY_1)) {
-            is DoorControlResult.Opened -> GateResult.Opened
-            is DoorControlResult.Failed -> GateResult.Failed("一号门开门失败: ${d1.message}")
+        return if (channel is QbChannelService) {
+            when (val d1 = channel.detectBooks(0)) {
+                is DoorControlResult.Opened -> GateResult.Opened
+                is DoorControlResult.Failed -> GateResult.Failed("一号门开门失败: ${d1.message}")
+            }
+        } else {
+            when (val d1 = channel.openDoor(DoorId.ENTRY_1)) {
+                is DoorControlResult.Opened -> GateResult.Opened
+                is DoorControlResult.Failed -> GateResult.Failed("一号门开门失败: ${d1.message}")
+            }
         }
     }
 
     /**
      * 打开二号门（出馆方向）。
+     * 对于 QbChannelService：使用 QB_DetectBooks(detectResult=1) 开二号门出馆
+     * 对于普通 RfidChannelService：使用 openDoor(DoorId.EXIT_2)
      */
     suspend fun openExitDoor(): GateResult {
         when (val c = channel.connect()) {
@@ -59,14 +70,23 @@ class GateService(
             is ChannelConnectResult.Failed -> return GateResult.Failed("通道连接失败: ${c.message}")
         }
 
-        return when (val d2 = channel.openDoor(DoorId.EXIT_2)) {
-            is DoorControlResult.Opened -> GateResult.Opened
-            is DoorControlResult.Failed -> GateResult.Failed("二号门开门失败: ${d2.message}")
+        return if (channel is QbChannelService) {
+            when (val d2 = channel.detectBooks(1)) {
+                is DoorControlResult.Opened -> GateResult.Opened
+                is DoorControlResult.Failed -> GateResult.Failed("二号门开门失败: ${d2.message}")
+            }
+        } else {
+            when (val d2 = channel.openDoor(DoorId.EXIT_2)) {
+                is DoorControlResult.Opened -> GateResult.Opened
+                is DoorControlResult.Failed -> GateResult.Failed("二号门开门失败: ${d2.message}")
+            }
         }
     }
 
     /**
      * 一号门开门后启动一次盘点，仅返回盘点结果，不负责决定开哪扇门。
+     * 对于 QbChannelService：使用 QB_Authentication(flag=1) 开一号门 + 启动盘点
+     * 对于普通 RfidChannelService：使用 openDoor(DoorId.ENTRY_1)
      */
     suspend fun inventoryAfterEntry(): InventoryResult {
         // 确保通道已连接
@@ -75,10 +95,19 @@ class GateService(
             is ChannelConnectResult.Failed -> return InventoryResult.Error("通道连接失败: ${c.message}")
         }
 
-        // 打开一号门让读者进入
-        when (val d1 = channel.openDoor(DoorId.ENTRY_1)) {
-            is DoorControlResult.Opened -> Unit
-            is DoorControlResult.Failed -> return InventoryResult.Error("一号门开门失败: ${d1.message}")
+        // 开门逻辑
+        if (channel is QbChannelService) {
+            // 使用 QB_Authentication(flag=2) 开一号门 + 启动盘点（借书方向）
+            when (val auth = channel.authenticate(2)) {
+                is DoorControlResult.Opened -> Unit
+                is DoorControlResult.Failed -> return InventoryResult.Error("一号门开门失败: ${auth.message}")
+            }
+        } else {
+            // 使用普通开门方法
+            when (val d1 = channel.openDoor(DoorId.ENTRY_1)) {
+                is DoorControlResult.Opened -> Unit
+                is DoorControlResult.Failed -> return InventoryResult.Error("一号门开门失败: ${d1.message}")
+            }
         }
 
         // 给读者一点时间进入通道

@@ -9,18 +9,35 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
+ * 扩展的 RFID 通道接口，支持厂家特定的 QB_Authentication 和 QB_DetectBooks 接口。
+ */
+interface QbChannelService : RfidChannelService {
+    /**
+     * 调用厂家 QB_Authentication 接口进行认证并开门。
+     * 根据厂家 Demo：flag=1 表示还书方向（进入闸机），flag=2 表示借书方向（离开闸机）
+     */
+    suspend fun authenticate(flag: Byte): DoorControlResult
+
+    /**
+     * 调用厂家 QB_DetectBooks 接口通知检测结果并开门。
+     * 根据厂家 Demo：detectResult=1 (Pass) 表示允许通过，detectResult=0 (Failed) 表示拒绝
+     */
+    suspend fun detectBooks(detectResult: Byte): DoorControlResult
+}
+
+/**
  * 基于厂家 QBChannel Demo 所用 anreaderlib.jar 的实现。
  *
- * 仅封装本项目需要的能力：
+ * 封装本项目需要的能力：
  *  - 串口方式连接/初始化通道
- *  - 一号门 / 二号门 开门
+ *  - 一号门 / 二号门 开门（使用 QB_Authentication 和 QB_DetectBooks 接口）
  *  - 读取通道缓冲中的标签记录，转换为简单的 RfidTag 列表
  */
 class QbChannelRfidChannelService(
     private val serialPortPath: String = AppConfig.SERIAL_PORT_PATH,
     private val baudRate: Int = AppConfig.BAUD_RATE,
     private val frame: String = AppConfig.FRAME_FORMAT
-) : RfidChannelService {
+) : QbChannelService {
 
     private val reader = ADReaderInterface()
     private var connected = false
@@ -77,6 +94,45 @@ class QbChannelRfidChannelService(
         ChannelConnectResult.Connected
     }
 
+    /**
+     * 调用厂家 QB_Authentication 接口进行认证并开门。
+     * 根据厂家 Demo：flag=1 表示还书方向（进入闸机），flag=2 表示借书方向（离开闸机）
+     * 本项目仅用于借书场景，使用 flag=2 表示借书方向（离开闸机）
+     */
+    override suspend fun authenticate(flag: Byte): DoorControlResult = withContext(Dispatchers.IO) {
+        if (!connected) {
+            val conn = connect()
+            if (conn is ChannelConnectResult.Failed) {
+                return@withContext DoorControlResult.Failed(conn.message)
+            }
+        }
+
+        val ret = reader.QB_Authentication(flag)
+        if (ret != ApiErrDefinition.NO_ERROR) {
+            return@withContext DoorControlResult.Failed("QB_Authentication 失败: code=$ret, flag=$flag")
+        }
+        DoorControlResult.Opened
+    }
+
+    /**
+     * 调用厂家 QB_DetectBooks 接口通知检测结果并开门。
+     * 根据厂家 Demo：detectResult=1 (Pass) 表示允许通过，detectResult=0 (Failed) 表示拒绝
+     */
+    override suspend fun detectBooks(detectResult: Byte): DoorControlResult = withContext(Dispatchers.IO) {
+        if (!connected) {
+            val conn = connect()
+            if (conn is ChannelConnectResult.Failed) {
+                return@withContext DoorControlResult.Failed(conn.message)
+            }
+        }
+
+        val ret = reader.QB_DetectBooks(detectResult)
+        if (ret != ApiErrDefinition.NO_ERROR) {
+            return@withContext DoorControlResult.Failed("QB_DetectBooks 失败: code=$ret, detectResult=$detectResult")
+        }
+        DoorControlResult.Opened
+    }
+
     override suspend fun openDoor(door: DoorId): DoorControlResult = withContext(Dispatchers.IO) {
         if (!connected) {
             val conn = connect()
@@ -85,13 +141,29 @@ class QbChannelRfidChannelService(
             }
         }
 
-        // 通道状态控制：使用集中配置中的门状态映射
-        val channelState: Byte = AppConfig.getDoorState(door).toByte()
-        val ret = reader.QB_SetChannelState(channelState)
-        if (ret != ApiErrDefinition.NO_ERROR) {
-            return@withContext DoorControlResult.Failed("QB_SetChannelState 失败: code=$ret")
+        // 对于 QbChannelService，使用正确的厂家接口替代旧的 QB_SetChannelState
+        // 根据门的方向调用相应的接口
+        when (door) {
+            DoorId.ENTRY_1 -> {
+                // 开一号门：使用 QB_Authentication(flag=2) 开一号门 + 启动盘点
+                // 注意：这里仅开门，不启动盘点，盘点由专门的 inventoryAfterEntry 方法处理
+                val ret = reader.QB_Authentication(2)
+                if (ret != ApiErrDefinition.NO_ERROR) {
+                    DoorControlResult.Failed("QB_Authentication 失败: code=$ret, flag=2")
+                } else {
+                    DoorControlResult.Opened
+                }
+            }
+            DoorId.EXIT_2 -> {
+                // 开二号门：使用 QB_DetectBooks(detectResult=1) 开二号门出馆
+                val ret = reader.QB_DetectBooks(1)
+                if (ret != ApiErrDefinition.NO_ERROR) {
+                    DoorControlResult.Failed("QB_DetectBooks 失败: code=$ret, detectResult=1")
+                } else {
+                    DoorControlResult.Opened
+                }
+            }
         }
-        DoorControlResult.Opened
     }
 
     override suspend fun startInventory(timeoutMillis: Long): InventoryResult = withContext(Dispatchers.IO) {

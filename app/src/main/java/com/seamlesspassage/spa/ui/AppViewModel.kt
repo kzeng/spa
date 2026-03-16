@@ -19,8 +19,8 @@ class AppViewModel : ViewModel() {
     private val faceAuth = FaceAuthService()
     private val sip2 = Sip2Service()
     
-    // // 模拟的通道服务，实际使用时替换为真实实现， Kzeng 2026-02-09
-    // private val gate = GateService(SimulatedRfidChannelService())
+    // 模拟的通道服务，实际使用时替换为真实实现， Kzeng 2026-02-09
+    // private val gate = GateService(SimulatedQbChannelService())
 
     private val gate = GateService()
 

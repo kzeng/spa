@@ -50,12 +50,13 @@
 
    - 当前代码使用 `/dev/ttyS4` + 115200 波特率 + 8N1；上线前需与厂家确认实际串口设备号是否一致（例如 /dev/ttyS3、/dev/ttyUSB0 等）。
    - 若串口号不一致，需要在 QbChannelRfidChannelService 中调整并重新打包。
-- 门号与方向：
-   - DoorId.ENTRY_1 → `QB_SetChannelState(1)`，应对应“读者进入时的一号门（进馆方向）”；
-   - DoorId.EXIT_2 → `QB_SetChannelState(2)`，应对应“借书成功后离馆方向的二号门”。
+- 门号与方向（已更新为正确的厂家接口）：
+   - 人脸认证成功后开一号门：调用 `QB_Authentication(flag=2)` 开一号门 + 启动盘点（借书方向）；
+   - 借书成功开二号门：调用 `QB_DetectBooks(detectResult=1)` 开二号门出馆；
+   - 借书失败/退回：调用 `QB_DetectBooks(detectResult=0)` 开一号门退回。
    - 现场需要实际走一次流程验证：
-      - 人脸+有书 → 是否正确开二号门出馆；
-      - 无书或借书失败 → 是否重新开一号门退回。
+      - 人脸+有书 → 是否正确调用 `QB_DetectBooks(detectResult=1)` 开二号门出馆；
+      - 无书或借书失败 → 是否调用 `QB_DetectBooks(detectResult=0)` 开一号门退回。
 - 盘点标签结果： [跳转到具体实现说明](#图书盘点获取图书信息)
    - 确认从厂家设备解析出的 EPC 与 UID 与馆方系统约定一致：
       - EPC 建议为 32 字节（64 个十六进制字符）；
@@ -65,12 +66,12 @@
 ### 三、业务闭环与 UI 表达
 
 - 正向闭环（Happy Path）：
-   - 人脸认证成功 → 有书盘点成功 → `/sip2_check` 返回 `borrow_allowed = true` → 二号门打开 → UI 显示 AuthSuccess，语音“认证成功/借书成功” → 3 秒后回到 Idle。
+   - 人脸认证成功 → 有书盘点成功 → `/sip2_check` 返回 `borrow_allowed = true` → 二号门打开 → UI 显示 AuthSuccess，语音"认证成功/借书成功" → 3 秒后回到 Idle。
 - 失败/异常分支：
-   - 人脸认证失败（/face_auth 未返回 reader_id）：UI 显示 Denied，语音“认证失败”，不打开任何门，3 秒后回到 Idle。
-   - 有读者进通道但盘点 NoTags 或 tags 为空：一号门重新打开，UI 显示 Denied（视为“无书”），3 秒后回到 Idle。
+   - 人脸认证失败（/face_auth 未返回 reader_id）：UI 显示 Denied，语音"认证失败"，不打开任何门，3 秒后回到 Idle。
+   - 有读者进通道但盘点 NoTags 或 tags 为空：一号门重新打开，UI 显示 Denied（视为"无书"），3 秒后回到 Idle。
    - 盘点 Error（串口/厂家错误）：一号门重新打开，UI 显示 Error(message)，3 秒后回到 Idle。
-   - `/sip2_check` 返回失败或接口异常：一号门重新打开，UI 显示 Denied，语音“借书失败”，3 秒后回到 Idle。
+   - `/sip2_check` 返回失败或接口异常：一号门重新打开，UI 显示 Denied，语音"借书失败"，3 秒后回到 Idle。
 - 检查点：
    - 任意异常情况下，界面是否都能在若干秒内回到 Idle，而不会卡在中间状态；
    - 文案与语音提示是否和门的实际动作一致，避免误导读者。
@@ -83,15 +84,15 @@
 - 厂家通道错误码：
    - 对照 QBChannel 文档，记录常见错误码（例如串口打开失败、通道未初始化、读写超时等），便于看到 Error(message) 时快速定位原因。
 - 现场联调建议：
-   - 先在“模拟通道 + 模拟 HTTP”环境下验证 UI 流程闭环；
-   - 再逐步切换为“真实通道 + 模拟 HTTP”、“真实通道 + 真实 HTTP”，分步排除问题。
+   - 先在"模拟通道 + 模拟 HTTP"环境下验证 UI 流程闭环；
+   - 再逐步切换为"真实通道 + 模拟 HTTP"、"真实通道 + 真实 HTTP"，分步排除问题。
 
 
 
 ### 图书盘点获取图书信息
 盘点这块在 SPA 里是这样分层实现的：
 
-**1. 抽象接口（定义“盘点图书”功能）**  
+**1. 抽象接口（定义"盘点图书"功能）**  
 - 文件：  
   - RfidChannelService.kt  
 - 关键方法：  
@@ -108,13 +109,13 @@
     - `QB_CHANNEL_GetBufRecordCount` 看有几条记录  
     - `QB_CHANNEL_ReadBufRecord` + `QB_CHANNEL_ParseGettedData` 解析出 `uidHex` 和 `user` 区（epcHex），最后组装成 `RfidTag(epc = epcHex, uid = uidHex)` 列表。
 
-**3. 业务封装（人脸成功后“一号门 + 盘点”）**  
+**3. 业务封装（人脸成功后"一号门 + 盘点"）**  
 - 文件：  
   - GateService.kt  
 - 关键方法：  
   - `suspend fun inventoryAfterEntry(): InventoryResult`  
     - 先 `channel.connect()`  
-    - 再 `openDoor(DoorId.ENTRY_1)` 开一号门  
+    - 再调用 `QB_Authentication(flag=2)` 开一号门 + 启动盘点（借书方向）  
     - `delay(300)` 给人进入  
     - 最后调用 `channel.startInventory()` 完成盘点并返回 `InventoryResult`。
 
@@ -126,5 +127,4 @@
   - 拿到的 `tags` 传给 `Sip2Service.check(readerId, tags)` 走 `/sip2_check`。
 
 总结：  
-真正“盘点图书、读取标签信息”的接口就是 `RfidChannelService.startInventory()`，当前由 `QbChannelRfidChannelService.startInventory()` 基于厂家 anreaderlib.jar 实现；业务侧通过 `GateService.inventoryAfterEntry()` 在刷脸成功后触发这一流程。
-
+真正"盘点图书、读取标签信息"的接口就是 `RfidChannelService.startInventory()`，当前由 `QbChannelRfidChannelService.startInventory()` 基于厂家 anreaderlib.jar 实现；业务侧通过 `GateService.inventoryAfterEntry()` 在刷脸成功后触发这一流程。

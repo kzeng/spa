@@ -19,8 +19,10 @@
   - GateService：封装门禁与通道整体流程（开门、盘点）
 - 厂家通道抽象与实现
   - RfidChannelService：通道抽象接口
+  - QbChannelService：扩展接口，支持厂家特定的 QB_Authentication 和 QB_DetectBooks 接口
   - QbChannelRfidChannelService：对接厂家 QB 通道库（anreaderlib.jar + so）
   - SimulatedRfidChannelService：模拟实现（无需硬件）
+  - SimulatedQbChannelService：模拟 QbChannelService 实现（无需硬件）
 - 外部依赖
   - 本地 HTTP 服务：`${AppConfig.BASE_URL}`（默认：`http://127.0.0.1:8080`）
   - 厂家 RFID 无感借书通道（串口 `${AppConfig.SERIAL_PORT_PATH}`，默认：`/dev/ttyS4`）
@@ -41,7 +43,7 @@
    - 成功：通道连接+初始化完成，UI 仍保持在 Idle；
    - 失败：UiState.Error("通道连接失败: ...") 短暂显示后回到 Idle。
 3. Idle 等待人脸
-   - UiState.Idle：底部提示“请正对摄像头，您无须操作，等待完成识别”，播放 idle 语音。
+   - UiState.Idle：底部提示"请正对摄像头，您无须操作，等待完成识别"，播放 idle 语音。
    - FrontCameraPreview 持续从前置摄像头获取帧，交给 ML Kit 做人脸检测与关键点计算。
 4. 检测到人脸 & 抓取最佳帧
    - ML Kit 连续 N 帧检测到稳定的人脸后：
@@ -51,42 +53,42 @@
 5. 进入业务编排 onFaceDetected
    - SpaScreen → AppViewModel.onFaceDetected(faceImageBase64)：
      - 仅在 UiState.Idle / Error 时受理；
-     - UiState 切换为 FaceDetected（“正在认证身份，请保持正对镜头”）。
+     - UiState 切换为 FaceDetected（"正在认证身份，请保持正对镜头"）。
 6. 调用本地 HTTP 接口 `/face_auth`
    - FaceAuthService.authenticate(image_base64)：
      - POST `http://127.0.0.1:8080/face_auth`
      - 请求体：`{"image_base64": "<Base64>"}`
      - 响应：若 HTTP 成功且 JSON 中 `reader_id` 非空 → 视为认证成功；否则视为失败。
    - 结果分支：
-     - 失败：UiState.Denied（“认证失败”），3 秒后回到 Idle；
+     - 失败：UiState.Denied（"认证失败"），3 秒后回到 Idle；
      - 成功：拿到 `reader_id`，继续下一步通道与盘点流程。
 7. 一号门开门 + 盘点图书
    - AppViewModel 调用 GateService.inventoryAfterEntry(readerId)：
      - 确保通道连接（必要时重连）。
-     - 调用 QbChannelRfidChannelService.openDoor(ENTRY_1)：开一号门让读者进入通道。
+     - 调用 QbChannelRfidChannelService.authenticate(flag=2)：使用 `QB_Authentication(flag=2)` 开一号门 + 启动盘点（借书方向）；
      - 延时约 300ms 等读者进入后，调用 QbChannelRfidChannelService.startInventory(timeout=5s)：
        - 轮询厂商缓冲区，解析标签数据为 `RfidTag(epc, uid)` 列表。
    - 盘点结果分支：
-     - InventoryResult.Success(tags) 且 tags 非空：认为“有书”，继续调用 `/sip2_check`；
-     - InventoryResult.Success(tags) 且 tags 为空：认为“无书”，视为失败：
-       - 再次开一号门（退回）；UiState.Denied；
-     - InventoryResult.NoTags：同“无书”处理（开一号门退回 + Denied）；
+     - InventoryResult.Success(tags) 且 tags 非空：认为"有书"，继续调用 `/sip2_check`；
+     - InventoryResult.Success(tags) 且 tags 为空：认为"无书"，视为失败：
+       - 调用 QbChannelRfidChannelService.detectBooks(0)：使用 `QB_DetectBooks(detectResult=0)` 开一号门退回；UiState.Denied；
+     - InventoryResult.NoTags：同"无书"处理（开一号门退回 + Denied）；
      - InventoryResult.Error(message)：
-       - 开一号门退回；UiState.Error(message)。
+       - 调用 QbChannelRfidChannelService.detectBooks(0)：使用 `QB_DetectBooks(detectResult=0)` 开一号门退回；UiState.Error(message)。
 8. 调用本地 HTTP 接口 `/sip2_check`
    - 在 tags 非空时调用 Sip2Service.check(readerId, tags)：
      - POST `http://127.0.0.1:8080/sip2_check`
      - 请求体：`{"reader_id": "<readerId>", "tags": [["<epc1>","<uid1>"], ...]}`
      - 响应：
-       - `error == false && borrow_allowed == true` → 认为“借书成功”；
-       - 其他任何情况（error 为 true 或 borrow_allowed 为 false，或 HTTP/解析错误）→ 认为“借书失败”。
+       - `error == false && borrow_allowed == true` → 认为"借书成功"；
+       - 其他任何情况（error 为 true 或 borrow_allowed 为 false，或 HTTP/解析错误）→ 认为"借书失败"。
 9. 二号门开门 / 一号门退回
    - 借书成功：
-     - GateService.openExitDoor() → QbChannelRfidChannelService.openDoor(EXIT_2)：开二号门；
-     - UiState.AuthSuccess(userId)（“认证成功，请通过”/“借书成功”），播放成功语音；
+     - GateService.openExitDoor() → QbChannelRfidChannelService.detectBooks(1)：使用 `QB_DetectBooks(detectResult=1)` 开二号门出馆；
+     - UiState.AuthSuccess(userId)（"认证成功，请通过"/"借书成功"），播放成功语音；
    - 借书失败：
-     - GateService.openEntryDoor()：再次开一号门，引导读者退回；
-     - UiState.Denied（“借书失败”），播放失败语音。
+     - GateService.openEntryDoor() → QbChannelRfidChannelService.detectBooks(0)：使用 `QB_DetectBooks(detectResult=0)` 开一号门退回；
+     - UiState.Denied（"借书失败"），播放失败语音。
 10. 自动回到 Idle
   - 无论成功/失败/错误，AppViewModel 最终都会延时约 3 秒，将 UiState 重置为 Idle，准备下一位读者。
 
@@ -115,22 +117,22 @@ flowchart TD
 
     H -->|reader_id 有效| K[UiState.FaceDetected<br/>语音: 正在认证]
     K --> L[GateService.inventoryAfterEntry]
-    L --> M[开一号门 ENTRY_1]
+    L --> M[QB_Authentication(flag=2)<br/>开一号门 + 启动盘点（借书方向）]
     M --> N[延时 300ms 后启动盘点]
     N --> O[QbChannelRfidChannelService.startInventory]
 
-    O -->|Error| P[开一号门退回<br/>UiState.Error]
-    O -->|NoTags 或 tags 为空| Q[开一号门退回<br/>UiState.Denied]
+    O -->|Error| P[QB_DetectBooks(detectResult=0)<br/>开一号门退回<br/>UiState.Error]
+    O -->|NoTags 或 tags 为空| Q[QB_DetectBooks(detectResult=0)<br/>开一号门退回<br/>UiState.Denied]
     P --> J
     Q --> J
 
     O -->|tags 非空| R[调用 /sip2_check]
 
-    R -->|借书成功<br/>error=false & borrow_allowed=true| S[开二号门 EXIT_2]
+    R -->|借书成功<br/>error=false & borrow_allowed=true| S[QB_DetectBooks(detectResult=1)<br/>开二号门出馆]
     S --> T[UiState.AuthSuccess<br/>语音: 借书成功/认证成功]
     T --> J
 
-    R -->|借书失败/异常| U[开一号门退回<br/>UiState.Denied<br/>语音: 借书失败]
+    R -->|借书失败/异常| U[QB_DetectBooks(detectResult=0)<br/>开一号门退回<br/>UiState.Denied<br/>语音: 借书失败]
     U --> J
 ```
 
@@ -145,17 +147,18 @@ flowchart TD
 - 初始化流程：
   - 按示例顺序调用：`RDR_Open` → `QBCHANNEL_CFG_TurnstileParam` → `QB_CHANNEL_Init`。
   - 仅读取标签，不写 EAS/AFI 等，参数偏保守、安全。
-- 开门控制：
-  - DoorId.ENTRY_1 → 发送 `QB_SetChannelState(1)`；
-  - DoorId.EXIT_2 → 发送 `QB_SetChannelState(2)`；
+- 开门控制（已更新为正确的厂家接口）：
+    - 人脸认证成功后开一号门：调用 `QB_Authentication(flag=2)` 开一号门 + 启动盘点（借书方向）；
+  - 借书成功开二号门：调用 `QB_DetectBooks(detectResult=1)` 开二号门出馆；
+  - 借书失败/退回：调用 `QB_DetectBooks(detectResult=0)` 开一号门退回；
   - 每次返回值非 0 都转换为失败，并在 UI 以 Error 形式提示。
-  - 这部分“1/2 含义”需根据厂家文档与现场试验确认一次，以防门方向反了。
+  - 这部分"flag/detectResult 含义"已根据厂家文档确认：flag=1 表示还书方向（进入闸机），detectResult=1 表示允许通过。
 - 盘点逻辑：
   - 按厂家 API 轮询缓冲区 → 读取记录 → `QB_CHANNEL_ParseGettedData` → 解析 UID 与 user 区；
   - 将 user 区按十六进制视为 EPC，UID 视为芯片 UID，形成 `tags: [[epc, uid], ...]`；
   - 在连接断开（特定错误码）时中止并返回 Error，避免死循环。
 
-整体来看，厂家接口调用流程清晰，有基本的错误码处理和兜底逻辑；**需要现场重点验证的主要是：串口号、门号映射、EPC 字段长度与后端预期的对齐**。
+整体来看，厂家接口调用流程已按照正确方式实现，有基本的错误码处理和兜底逻辑；**需要现场重点验证的主要是：串口号、门号映射、EPC 字段长度与后端预期的对齐**。
 
 ### 2. 本地 HTTP 接口数据格式对齐情况
 
@@ -168,7 +171,7 @@ flowchart TD
     - `reader_id`: 从 /face_auth 拿到的读者 ID；
     - `tags`: List<[epc, uid]>，其中 epc/uid 来自厂家数据解析；
   - 响应：
-    - 读取 `error`（boolean）与 `borrow_allowed`（boolean），两者共同决定“借书成功/失败”；
+    - 读取 `error`（boolean）与 `borrow_allowed`（boolean），两者共同决定"借书成功/失败"；
     - `message` 仅用于日志/提示，不直接显示在当前 UI 上。
   - 结构与 API 文档匹配，没有字段名冲突。
 
@@ -178,20 +181,22 @@ flowchart TD
 
 ## 五、调试与实施重点关注点（摘要）
 
-> 详细的“上线检查清单”在 TODO.md 中有更细致条目，这里只列关键维度。
+> 详细的"上线检查清单"在 TODO.md 中有更细致条目，这里只列关键维度。
 
 1. 本地 HTTP 服务
    - `/face_auth` 与 `/sip2_check` 是否都在 `127.0.0.1:8080` 正常监听；
    - 实际返回 JSON 是否包含文档约定的字段与含义（reader_id / error / borrow_allowed / message）。
 2. 厂家通道与门控制
    - 串口号 `/dev/ttyS4` 与波特率是否和现场设备一致；
-   - `QB_SetChannelState(1/2)` 是否真对应“一号门进 / 二号门出”；
+   - `QB_Authentication(flag=1)` 是否真对应"一号门进 + 启动盘点"；
+   - `QB_DetectBooks(detectResult=1)` 是否真对应"二号门出馆"；
+   - `QB_DetectBooks(detectResult=0)` 是否真对应"一号门退回"；
    - 盘点结果中 EPC/UID 是否符合后端定义（尤其 EPC 长度 32 字节 / 64 个十六进制字符）。
 3. 业务闭环与 UI 表达
    - 每种异常（HTTP 失败、通道连接失败、盘点错误）是否在 UI 底部有清晰文案，且都能在 3 秒内回到 Idle；
-   - 成功/失败场景下语音提示与门的动作是否一致（“借书成功”→开二号门，“借书失败/认证失败”→开一号门或不开门）。
+   - 成功/失败场景下语音提示与门的动作是否一致（"借书成功"→开二号门，"借书失败/认证失败"→开一号门或不开门）。
 4. 日志与排错
    - 必要情况下，可在本地为 HTTP 请求/响应、厂家错误码增加日志输出，辅助定位接口/硬件问题；
    - 上线初期建议保留较详细日志，以便快速迭代调优。
 
-如需，我可以再根据现场调试情况，进一步细化某些分支（例如面向后端同事的“HTTP 报文样例 + 说明”）。
+如需，我可以再根据现场调试情况，进一步细化某些分支（例如面向后端同事的"HTTP 报文样例 + 说明"）。
