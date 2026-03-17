@@ -39,8 +39,9 @@ object AppConfig {
     const val DELAY_OPEN: Byte = 0   // 开门延时
     
     const val EXIT_FLAG: Byte = 0        // 0=借书；1=还书，按需调整
-    const val BLOCK_OFFSET: Char = 0.toChar() // 不读取条码
-    const val BLOCK_NUM: Byte = 0        // 0 表示不读取条码
+    // 用户区读取配置：offset=0, number=12（读取 12 Bytes 用户区数据，用于 EPC/TID 等）
+    const val BLOCK_OFFSET: Char = 0.toChar()
+    const val BLOCK_NUM: Byte = 12
     const val B_EAS = false
     const val B_AFI = false
     const val AFI_RETURN: Byte = 0x00

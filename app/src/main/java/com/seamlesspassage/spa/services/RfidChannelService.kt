@@ -46,11 +46,13 @@ sealed class DoorControlResult {
  * 通道盘点得到的单本图书标签信息。
  *
  * - epc: 业务 EPC 编码，长度约定为 16 Bytes（建议用 32 个十六进制字符表示）；
- * - uid: 芯片出厂唯一 UID 标识。
+ * - uid: 芯片出厂唯一 UID 标识；
+ * - tid: 标签 TID（厂商 Demo 示例：E200680A0000400093042465）。
  */
 data class RfidTag(
     val epc: String,
-    val uid: String
+    val uid: String,
+    val tid: String = ""
 )
 
 sealed class InventoryResult {
@@ -84,7 +86,8 @@ class SimulatedRfidChannelService : RfidChannelService {
                 listOf(
                     RfidTag(
                         epc = "0123456789ABCDEF0123456789ABCDEF", // 16字节 = 32个十六进制字符
-                        uid = "SIM_TAG_123456"
+                        uid = "SIM_TAG_123456",
+                        tid = "E200680A0000400093042465"
                     )
                 )
             )
@@ -131,7 +134,8 @@ class SimulatedQbChannelService : QbChannelService {
                 listOf(
                     RfidTag(
                         epc = "0123456789ABCDEF0123456789ABCDEF", // 16字节 = 32个十六进制字符
-                        uid = "SIM_TAG_123456"
+                        uid = "SIM_TAG_123456",
+                        tid = "E200680A0000400093042465"
                     )
                 )
             )

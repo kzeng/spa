@@ -222,15 +222,22 @@ class QbChannelRfidChannelService(
                         )
                         if (parseRet == ApiErrDefinition.NO_ERROR) {
                             val uidHex = bytesToHex(uid, uidSize[0].toInt())
-                            // 厂家 Demo 中 user 区通常承载 EPC/业务数据，这里按十六进制字符串输出
-                            val epcHex = if (userSize[0] > 0) {
-                                val hex = bytesToHex(user, userSize[0].toInt())
-                                // 确保 EPC 符合 16 字节（32 个十六进制字符）的要求
-                                normalizeEpc(hex)
+                            // 厂家 Demo 中 user 区承载 EPC/TID 等业务数据，这里：
+                            // - epc：保持为规范化后的 16 字节 EPC（32 个十六进制字符）；
+                            // - tid：保留原始长度的十六进制串，便于与厂家 Demo（如 E200680A0000400093042465）对比。
+                            val rawUserHex = if (userSize[0] > 0) {
+                                bytesToHex(user, userSize[0].toInt())
                             } else {
                                 ""
                             }
-                            tags.add(RfidTag(epc = epcHex, uid = uidHex))
+                            val epcHex = if (rawUserHex.isNotEmpty()) {
+                                normalizeEpc(rawUserHex)
+                            } else {
+                                ""
+                            }
+                            val tidHex = rawUserHex
+
+                            tags.add(RfidTag(epc = epcHex, uid = uidHex, tid = tidHex))
                         }
                         hReport = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_NEXT)
                     }
