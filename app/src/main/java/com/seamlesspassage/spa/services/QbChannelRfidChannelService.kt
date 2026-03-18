@@ -118,7 +118,8 @@ class QbChannelRfidChannelService(
                 }
             }
         } catch (_: Exception) {
-            // 缓冲清理失败不影响主业务流程
+            // Do something if needed
+            // 缓冲清理失败不影响主业务流程 
         }
     }
 
