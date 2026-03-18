@@ -214,7 +214,8 @@ class QbChannelRfidChannelService(
 
         val deadline = System.currentTimeMillis() + timeoutMillis
         val allTags = LinkedHashMap<String, RfidTag>()
-        var firstTagTime: Long? = null
+        // 记录最近一次新增标签的时间，用于聚合窗口判断
+        var lastTagTime: Long? = null
 
         try {
             while (System.currentTimeMillis() < deadline) {
@@ -287,15 +288,17 @@ class QbChannelRfidChannelService(
                             hReport = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_NEXT)
                         }
 
-                        if (addedInThisBatch > 0 && firstTagTime == null) {
-                            firstTagTime = System.currentTimeMillis()
+                        if (addedInThisBatch > 0) {
+                            // 每次本轮有新增标签，都刷新最近标签时间，用于"静默时间"聚合判断
+                            lastTagTime = System.currentTimeMillis()
                         }
                     }
                 }
 
                 val now = System.currentTimeMillis()
-                val startTime = firstTagTime
-                if (allTags.isNotEmpty() && startTime != null && now - startTime >= AGGREGATION_WINDOW_MS) {
+                val latestTagTime = lastTagTime
+                // 若在最近一次新增标签之后已静默超过聚合窗口，则返回当前已聚合到的所有标签
+                if (allTags.isNotEmpty() && latestTagTime != null && now - latestTagTime >= AGGREGATION_WINDOW_MS) {
                     return@withContext InventoryResult.Success(allTags.values.toList())
                 }
 
