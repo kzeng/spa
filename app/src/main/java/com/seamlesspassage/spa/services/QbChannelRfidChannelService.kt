@@ -95,6 +95,34 @@ class QbChannelRfidChannelService(
     }
 
     /**
+     * 清空通道缓冲中的历史记录，避免本次盘点读到旧标签数据。
+     * 参考正常解析流程，完整遍历缓冲记录但不构造 RfidTag。
+     */
+    private fun clearChannelBuffer() {
+        try {
+            while (true) {
+                val delete = true
+                val getRet = reader.QB_CHANNEL_GetData(delete)
+                if (getRet != ApiErrDefinition.NO_ERROR) {
+                    break
+                }
+
+                val count = reader.QB_CHANNEL_GetBufRecordCount()
+                if (count <= 0) {
+                    break
+                }
+
+                var hReport: Any? = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_FIRST)
+                while (hReport != null) {
+                    hReport = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_NEXT)
+                }
+            }
+        } catch (_: Exception) {
+            // 缓冲清理失败不影响主业务流程
+        }
+    }
+
+    /**
      * 调用厂家 QB_Authentication 接口进行认证并开门。
      * 根据厂家 Demo：flag=1 表示还书方向（进入闸机），flag=2 表示借书方向（离开闸机）
      * 本项目仅用于借书场景，使用 flag=2 表示借书方向（离开闸机）
@@ -106,6 +134,9 @@ class QbChannelRfidChannelService(
                 return@withContext DoorControlResult.Failed(conn.message)
             }
         }
+
+        // 在本次借书流程开始前先清空历史缓冲记录，确保后续盘点只看到本次经过通道产生的数据
+        clearChannelBuffer()
 
         val ret = reader.QB_Authentication(flag)
         if (ret != ApiErrDefinition.NO_ERROR) {
