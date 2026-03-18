@@ -43,6 +43,12 @@ class QbChannelRfidChannelService(
     private var connected = false
     private var initialized = false
 
+    companion object {
+        // 多标签场景下的聚合窗口：首次读到标签后再等待一小段时间，
+        // 以便把同一轮过闸产生的后续标签一并读齐，减少漏读概率。
+        private const val AGGREGATION_WINDOW_MS: Long = 300
+    }
+
     /**
      * 构造 QBChannel Demo 中使用的串口连接字符串：
      * RDType=QBChannel;CommType=COM;ComPath=/dev/ttySx;Baund=115200;Frame=8N1;Addr=255
@@ -207,7 +213,8 @@ class QbChannelRfidChannelService(
         }
 
         val deadline = System.currentTimeMillis() + timeoutMillis
-        var loopCount = 0L
+        val allTags = LinkedHashMap<String, RfidTag>()
+        var firstTagTime: Long? = null
 
         try {
             while (System.currentTimeMillis() < deadline) {
@@ -223,70 +230,84 @@ class QbChannelRfidChannelService(
                     }
                     // 其它错误：稍作等待后继续尝试，直至超时
                     delay(50)
-                    continue
+                } else {
+                    val count = reader.QB_CHANNEL_GetBufRecordCount()
+                    if (count > 0) {
+                        // 解析缓冲区记录（参考 QBChannel.get_QBChannel_report）
+                        val sid = ByteArray(1)
+                        val date = ByteArray(7)
+                        val eventType = ByteArray(1)
+                        val dFlag = LongArray(1)
+                        val uid = ByteArray(8)
+                        val uidSize = longArrayOf(uid.size.toLong())
+                        val user = ByteArray(1024)
+                        val userSize = longArrayOf(user.size.toLong())
+
+                        var hReport: Any? = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_FIRST)
+                        var addedInThisBatch = 0
+                        while (hReport != null) {
+                            val parseRet = reader.QB_CHANNEL_ParseGettedData(
+                                hReport,
+                                sid,
+                                date,
+                                eventType,
+                                dFlag,
+                                uid,
+                                uidSize,
+                                user,
+                                userSize
+                            )
+                            if (parseRet == ApiErrDefinition.NO_ERROR) {
+                                val uidHex = bytesToHex(uid, uidSize[0].toInt())
+                                // 厂家 Demo 中 user 区承载 EPC/TID 等业务数据，这里：
+                                // - epc：保持为规范化后的 16 字节 EPC（32 个十六进制字符）；
+                                // - tid：保留原始长度的十六进制串，便于与厂家 Demo（如 E200680A0000400093042465）对比。
+                                val rawUserHex = if (userSize[0] > 0) {
+                                    bytesToHex(user, userSize[0].toInt())
+                                } else {
+                                    ""
+                                }
+                                val epcHex = if (rawUserHex.isNotEmpty()) {
+                                    normalizeEpc(rawUserHex)
+                                } else {
+                                    ""
+                                }
+                                val tidHex = rawUserHex
+
+                                if (epcHex.isNotEmpty() || uidHex.isNotEmpty() || tidHex.isNotEmpty()) {
+                                    val key = when {
+                                        tidHex.isNotEmpty() -> tidHex
+                                        uidHex.isNotEmpty() -> uidHex
+                                        else -> epcHex
+                                    }
+                                    allTags[key] = RfidTag(epc = epcHex, uid = uidHex, tid = tidHex)
+                                    addedInThisBatch++
+                                }
+                            }
+                            hReport = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_NEXT)
+                        }
+
+                        if (addedInThisBatch > 0 && firstTagTime == null) {
+                            firstTagTime = System.currentTimeMillis()
+                        }
+                    }
                 }
 
-                val count = reader.QB_CHANNEL_GetBufRecordCount()
-                if (count > 0) {
-                    val tags = mutableListOf<RfidTag>()
-                    // 解析缓冲区记录（参考 QBChannel.get_QBChannel_report）
-                    val sid = ByteArray(1)
-                    val date = ByteArray(7)
-                    val eventType = ByteArray(1)
-                    val dFlag = LongArray(1)
-                    val uid = ByteArray(8)
-                    val uidSize = longArrayOf(uid.size.toLong())
-                    val user = ByteArray(1024)
-                    val userSize = longArrayOf(user.size.toLong())
-
-                    var hReport: Any? = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_FIRST)
-                    while (hReport != null) {
-                        val parseRet = reader.QB_CHANNEL_ParseGettedData(
-                            hReport,
-                            sid,
-                            date,
-                            eventType,
-                            dFlag,
-                            uid,
-                            uidSize,
-                            user,
-                            userSize
-                        )
-                        if (parseRet == ApiErrDefinition.NO_ERROR) {
-                            val uidHex = bytesToHex(uid, uidSize[0].toInt())
-                            // 厂家 Demo 中 user 区承载 EPC/TID 等业务数据，这里：
-                            // - epc：保持为规范化后的 16 字节 EPC（32 个十六进制字符）；
-                            // - tid：保留原始长度的十六进制串，便于与厂家 Demo（如 E200680A0000400093042465）对比。
-                            val rawUserHex = if (userSize[0] > 0) {
-                                bytesToHex(user, userSize[0].toInt())
-                            } else {
-                                ""
-                            }
-                            val epcHex = if (rawUserHex.isNotEmpty()) {
-                                normalizeEpc(rawUserHex)
-                            } else {
-                                ""
-                            }
-                            val tidHex = rawUserHex
-
-                            tags.add(RfidTag(epc = epcHex, uid = uidHex, tid = tidHex))
-                        }
-                        hReport = reader.QB_CHANNEL_ReadBufRecord(RfidDef.RFID_SEEK_NEXT)
-                    }
-
-                    if (tags.isNotEmpty()) {
-                        return@withContext InventoryResult.Success(tags)
-                    }
-                } else {
-                    // 没有记录，发一个 EMPTY 的语义，继续等待直到超时
-                    loopCount++
+                val now = System.currentTimeMillis()
+                val startTime = firstTagTime
+                if (allTags.isNotEmpty() && startTime != null && now - startTime >= AGGREGATION_WINDOW_MS) {
+                    return@withContext InventoryResult.Success(allTags.values.toList())
                 }
 
                 delay(100)
             }
 
-            // 超时仍未读到标签
-            InventoryResult.NoTags
+            // 超时：若已读到标签，则返回已聚合的全部标签；否则视为无标签
+            if (allTags.isNotEmpty()) {
+                InventoryResult.Success(allTags.values.toList())
+            } else {
+                InventoryResult.NoTags
+            }
         } finally {
             // 复位立即超时标志，避免影响后续通信
             reader.RDR_ResetCommuImmeTimeout()
