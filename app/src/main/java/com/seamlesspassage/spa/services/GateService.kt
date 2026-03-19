@@ -22,7 +22,7 @@ sealed class GateResult {
  * 5. 若盘点失败/无标签，则重新打开一号门，提示读者退回。
  */
 class GateService(
-    private val channel: RfidChannelService = QbChannelRfidChannelService()
+    private val channel: RfidChannelService = GlobalChannelProvider.channel
 ) {
 
     /**
@@ -80,6 +80,30 @@ class GateService(
                 is DoorControlResult.Opened -> GateResult.Opened
                 is DoorControlResult.Failed -> GateResult.Failed("二号门开门失败: ${d2.message}")
             }
+        }
+    }
+
+    /**
+     * 还书进馆场景：依次打开二号门和一号门，不做盘点。
+     *
+     * 语义：
+     * - 先开二号门，让读者从馆外侧进入通道；
+     * - 再开一号门，让读者从通道进入馆内。
+     */
+    suspend fun openAllDoorsForReturn(): GateResult {
+        // 先开二号门（出馆方向的那扇门）
+        when (val exitResult = openExitDoor()) {
+            is GateResult.Failed -> return exitResult
+            is GateResult.Opened -> Unit
+        }
+
+        // 给闸机一点时间完成动作
+        delay(AppConfig.OPEN_DOOR_DELAY_MS)
+
+        // 再开一号门（进馆方向的那扇门）
+        return when (val entryResult = openEntryDoor()) {
+            is GateResult.Failed -> entryResult
+            is GateResult.Opened -> GateResult.Opened
         }
     }
 

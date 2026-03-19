@@ -83,6 +83,9 @@ dependencies {
     // HTTP client for face_auth
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // Embedded HTTP server for gate control
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+
     // 厂家 RFID 无感借书通道库（拷贝到本模块 app/libs 下）
     implementation(files("libs/anreaderlib.jar"))
     implementation(files("libs/d2xx.jar"))

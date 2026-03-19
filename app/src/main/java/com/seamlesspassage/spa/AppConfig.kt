@@ -12,6 +12,10 @@ object AppConfig {
     const val FACE_AUTH_ENDPOINT = "$BASE_URL/face_auth"
     const val SIP2_CHECK_ENDPOINT = "$BASE_URL/sip2_check"
     
+    // 本地门禁控制 HTTP 服务配置
+    const val GATE_HTTP_PORT = 8686
+    const val GATE_HTTP_TOKEN = "boku_spa_token_2026" // 简单共享密钥，用于保护 /openAllDoors 接口
+    
     // ==================== 厂家通道配置 ====================
     const val SERIAL_PORT_PATH = "/dev/ttyS4"
     const val BAUD_RATE = 115200

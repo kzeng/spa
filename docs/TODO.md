@@ -238,3 +238,20 @@
   - 角色差异大的地方完全编译期隔离，不会互相干扰。  
 
 列出：这个项目里哪些类适合放 main，哪些放 master/client，各自的职责怎么划分?
+
+----------------------
+
+测试 进馆开门：
+
+```bash
+curl -X POST \
+  -H "x-spa-token: boku_spa_token_2026" \
+  http://192.168.1.10:8686/openAllDoors
+```
+
+使用实际IP!!!
+
+- Response on success:
+  - `{"success":true,"message":"doors opened"}`  
+- Response on error (e.g. 通道失败):
+  - `{"success":false,"message":"...错误原因..."}`
