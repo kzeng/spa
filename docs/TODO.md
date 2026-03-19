@@ -128,3 +128,113 @@
 
 总结：  
 真正"盘点图书、读取标签信息"的接口就是 `RfidChannelService.startInventory()`，当前由 `QbChannelRfidChannelService.startInventory()` 基于厂家 anreaderlib.jar 实现；业务侧通过 `GateService.inventoryAfterEntry()` 在刷脸成功后触发这一流程。
+
+-------------------------------------------
+
+
+
+**架构推荐**
+
+- 通道设备：**只允许一台平板直连**（现在这台“出馆平板”当主控），独占 QbChannelRfidChannelService/串口。
+- 主控平板：
+  - 用你现有的 SPA 工程继续做“刷脸 + 盘点 + 借书出馆”完整流程。
+  - 在主控 APP 内新增一个很小的 HTTP 服务（监听 0.0.0.0:8686），暴露 `/openDoor`：
+    - 校验 `X-Spa-Token` + 来源 IP。
+    - 根据参数执行“还书进馆开门流程”（比如：只按还书方向顺序开二号门+一号门）。
+- 进馆平板：
+  - 单独一个“瘦客户端 APP”（可以是新代码库），只做：
+    - 摄像头 + 人脸检测 + 调本地 `/face_auth`。
+    - 人脸成功后，`POST http://<主控IP>:8686/openDoor`，带上 token/reader_id/场景等。
+  - 不集成厂家 SDK，不碰串口、不盘点。
+
+**代码组织建议**
+
+- 短期（你现在的阶段）：  
+  - 采用“两个角色，两个代码库”：  
+    - 现有 spa 工程 = 主控 APP（加一个 HTTP /openDoor）；  
+    - 新起一个极简 Android 工程 = 客户端 APP（复制必要的人脸 UI 和 FaceAuth 调用逻辑）。
+- 中长期如果觉得维护两套代码太累，再考虑把“公共的人脸 + HTTP 调用逻辑”抽成一个小库，两边共用。
+
+简单说：  
+- 架构上：**单主控 + HTTP 远程开门** 是我最推荐的方案；  
+- 实现方式上：考虑到你对复杂度的顾虑，**先用两个独立代码库实现两个 APP**，一步到位把硬件冲突问题彻底规避掉。
+--------------------------
+
+**如果以“两个 APK，一个代码库”为目标，推荐分三步：**
+
+1. **先搞定主控端 HTTP 能力（改动最小，收益最大）**  
+   - 在现有 SPA 里加一个极简 HTTP 服务，暴露 `/openDoor`，内部直接复用现在的 `GateService` / `QbChannelRfidChannelService`。  
+   - 这一步只动少量 Kotlin 代码和一点配置，不需要立刻上 flavor，也暂时不管客户端。
+
+2. **再做一个极简客户端 APP（可以先单独小工程）**  
+   - 只拷贝现有的人脸 UI + FaceAuth 调用逻辑。  
+   - 人脸成功后，直接 `POST http://<主控IP>:8686/openDoor`。  
+   - 这一步不碰通道、不碰串口，也不影响现在已经能跑的主控 APP。
+
+3. **最后再考虑“合并为一个代码库 + 两个 flavor”（可选，慢慢做）**  
+   - 当你确认方案稳定，再把那个小客户端工程“搬进来”，用 `src/master` / `src/client` 做源码拆分。  
+   - 这一步主要是整理结构，不是立刻必须做的。
+
+------------------------
+
+一套代码产两个 APK 是个很成熟的做法，可以完全通过 Gradle flavor + 源码拆分来避免。
+
+核心思路：**编译时就把 master / client 的差异隔离开，而不是靠大量 if 判断。**
+
+**1. 用 productFlavor 做两个变体**
+
+在 app 模块里加两个 flavor（示意）：
+
+- `master`：出馆主控版（连串口、QbChannelRfidChannelService、GateService 全流程）。  
+- `client`：进馆客户端版（只做人脸 + 调主控 /openDoor，不连通道、不盘点）。
+
+这样你就能单独打：
+
+- `masterDebug` / `masterRelease`
+- `clientDebug` / `clientRelease`
+
+**2. 用 flavor 专属源码目录隔离实现**
+
+关键点：同一个类名，在不同 flavor 下有**各自的实现**，互不编译进对方 APK，这样就不会“串扰”。
+
+例如：
+
+- 公共代码（两边共用）：  
+  - 保留在 `src/main/java/...` 里：  
+    - 摄像头 + 人脸 UI  
+    - FaceAuthService  
+    - 一些通用 model / 工具类
+- 只给 master 用的硬件相关：  
+  - 放到 `src/master/java/...`：  
+    - QbChannelRfidChannelService  
+    - 现在的 GateService（连串口 + 盘点 + 门控）  
+    - 主控版 AppConfig 中串口配置
+- 只给 client 用的远程控制：  
+  - 放到 `src/client/java/...`：  
+    - RemoteGateService（封装调用 `http://MASTER/openDoor`）  
+    - client 版 AppConfig（MASTER_BASE_URL 默认值等）
+
+再比如 AppViewModel：
+
+- 在 `src/master/java/...` 下有一个 `AppViewModel`，用 GateService 本地控门。  
+- 在 `src/client/java/...` 下也有一个 `AppViewModel`，用 RemoteGateService 调主控。  
+- 包名和类名可以相同，Gradle 会在编译 master/client 时各自选用对应实现，不会混用。
+
+这样保证：
+
+- client APK 中**根本没有** QbChannelRfidChannelService / 串口相关类，哪怕你想“误用”也编译不过去；  
+- master APK 中也不会出现 Remote 专用东西，两个世界物理隔离，避免串扰。
+
+**3. 配置与默认值**
+
+- master：在它自己的 AppConfig 里配置本机 HTTP 服务端口（比如 0.0.0.0:8686）。  
+- client：在它自己的 AppConfig 里配置主控默认地址（MASTER_BASE_URL），再允许从 SharedPreferences 覆盖。
+
+**4. 小结**
+
+- 一套代码、两个 flavor，是我现在最推荐给你的方案；  
+- 通过“按 flavor 拆源码目录 + 各自实现关键类”，可以做到：  
+  - 逻辑共用的地方只写一遍；  
+  - 角色差异大的地方完全编译期隔离，不会互相干扰。  
+
+列出：这个项目里哪些类适合放 main，哪些放 master/client，各自的职责怎么划分?
