@@ -147,6 +147,19 @@ class QbChannelRfidChannelService(
 
         val ret = reader.QB_Authentication(flag)
         if (ret != ApiErrDefinition.NO_ERROR) {
+            // 极简处理：若一号门已处于打开/未复位状态，QB_Authentication 会返回特定错误码（例如 code=-17, flag=2），
+            // 此时不立刻向上抛出“系统错误”，而是先等待一段时间让闸机自动关门，再重试一次开门。
+            if (ret == -17 && flag == 2.toByte()) {
+                // 等待硬件自动复位一号门（由业务确认约 6 秒足够）
+                delay(6000)
+                val retry = reader.QB_Authentication(flag)
+                if (retry != ApiErrDefinition.NO_ERROR) {
+                    // 重试仍失败，则按原有逻辑向上抛出错误，便于发现真实设备问题
+                    return@withContext DoorControlResult.Failed("QB_Authentication 失败: code=$retry, flag=$flag")
+                }
+                return@withContext DoorControlResult.Opened
+            }
+
             return@withContext DoorControlResult.Failed("QB_Authentication 失败: code=$ret, flag=$flag")
         }
         DoorControlResult.Opened
